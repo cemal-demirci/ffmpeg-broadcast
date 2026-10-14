@@ -51,6 +51,7 @@ t() {
     printf "  ${c_g}PASS${c_0}  %s\n" "$name"; PASS=$((PASS+1))
   else
     printf "  ${c_r}FAIL${c_0}  %s\n" "$name"; FAIL=$((FAIL+1)); FAILED+=( "$name" )
+    [[ -n "${GITHUB_ACTIONS:-}" ]] && echo "::error title=ffmpeg self-test::$name"
     sed 's/^/        /' "$log" | tail -n 5
   fi
 }
@@ -244,5 +245,8 @@ fi
 
 echo
 printf "Result: ${c_g}%d passed${c_0}, %b%d failed${c_0}\n" "$PASS" "$([[ $FAIL -gt 0 ]] && echo "$c_r" || echo "$c_g")" "$FAIL"
+if [[ -n "${GITHUB_ACTIONS:-}" && $FAIL -eq 0 ]]; then
+  echo "::notice title=FFmpeg self-test::$PASS passed, 0 failed. $("$FF" -hide_banner -version | head -n1 | cut -d' ' -f1-3). Every bcast preset was encoded and checked with ffprobe."
+fi
 [[ $FAIL -gt 0 ]] && { printf '  - %s\n' "${FAILED[@]}"; exit 1; }
 exit 0

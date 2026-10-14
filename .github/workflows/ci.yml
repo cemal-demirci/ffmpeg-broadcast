@@ -9,7 +9,7 @@ jobs:
   shellcheck:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: shellcheck -S warning build-ffmpeg-broadcast.sh test-ffmpeg-broadcast.sh bcast
 
   build-test:
@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Build (Ubuntu 24.04)
         run: sudo ./build-ffmpeg-broadcast.sh --jobs "$(nproc)"
       - name: Self-test (base scenarios + all bcast presets)
