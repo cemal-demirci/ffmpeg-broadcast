@@ -1,0 +1,10 @@
+desc         = Review proxy H.264 540p, MP4 faststart, CRF 26, AAC 128k
+category     = ott
+ext          = mp4
+size         = 960x540
+scan         = p
+pix_fmt      = yuv420p
+video        = -c:v libx264 -preset veryfast -crf 26 -profile:v high
+audio        = -c:a aac -b:a 128k -ac 2
+format       = -f mp4 -movflags +faststart
+expect       = codec_name=h264,width=960,height=540,field_order=progressive

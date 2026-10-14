@@ -1,0 +1,11 @@
+desc         = IPTV HEVC Main10 1080p50 CBR 8 Mb/s, MPEG-TS 10 Mb/s, AAC 192k
+category     = distribution
+ext          = ts
+size         = 1920x1080
+scan         = p50
+pix_fmt      = yuv420p10le
+video        = -c:v libx265 -preset fast -profile:v main10 -b:v 8M -x265-params vbv-maxrate=8000:vbv-bufsize=8000:strict-cbr=1:hrd=1:keyint=50:min-keyint=50:scenecut=0:repeat-headers=1:aud=1:log-level=error
+audio        = -c:a aac -b:a 192k -ac 2
+format       = -f mpegts -muxrate 10M -pcr_period 20
+expect       = codec_name=hevc,profile=Main 10,width=1920,height=1080,r_frame_rate=50/1
+expect_audio = streams=1,codec_name=aac,sample_rate=48000

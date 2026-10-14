@@ -1,0 +1,13 @@
+# Lossless preservation master: FFV1 v3 with per-slice CRC, FLAC audio,
+# original pixel format, scan and sample rate are kept.
+desc         = FFV1 v3 lossless archive, MKV, FLAC audio, nothing resampled
+category     = post
+ext          = mkv
+scan         = keep
+video        = -c:v ffv1 -level 3 -g 1 -slices 16 -slicecrc 1
+audio_map    = all
+resample     = keep
+audio        = -c:a flac
+format       = -f matroska
+expect       = codec_name=ffv1,width=1920,height=1080
+expect_audio = codec_name=flac

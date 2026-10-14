@@ -1,0 +1,11 @@
+# Output is a DIRECTORY: <out>/master.m3u8 + <out>/v0..vN/. Rungs taller than
+# the source are skipped (no upscaling).
+desc         = HLS ABR ladder 1080/720/540/360, H.264 + AAC, fMP4 4 s segments
+category     = ott
+ext          = /
+scan         = p
+ladder       = 1920x1080:6000k,1280x720:3500k,960x540:2000k,640x360:800k
+hls_time     = 4
+video        = -c:v libx264 -preset veryfast -profile:v high -sc_threshold 0 -force_key_frames expr:gte(t,n_forced*2)
+audio        = -c:a aac -b:a 128k -ac 2
+expect_hls   = 4

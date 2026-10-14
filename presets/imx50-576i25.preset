@@ -1,0 +1,16 @@
+# Sony IMX / D10 50 Mb/s SD. HD sources are converted with a BT.709 -> BT.601 matrix,
+# 16:9 anamorphic, padded to 608 lines (32 VBI lines) as D10 requires.
+desc         = IMX D10 50 Mb/s 576i25 16:9, MXF D10, 4 ch AES3
+category     = contribution
+ext          = mxf
+size         = 720x576
+scan         = i25
+matrix       = bt601
+vf_post      = pad=720:608:0:32,setdar=16/9
+pix_fmt      = yuv422p
+video        = -c:v mpeg2video -b:v 50M -minrate 50M -maxrate 50M -bufsize 2000000 -rc_init_occupancy 2000000 -g 1 -intra_vlc 1 -non_linear_quant 1 -dc 10 -flags +ildct+ilme -ps 1 -qmin 1 -qmax 3 -rc_max_vbv_use 1 -rc_min_vbv_use 1
+channels     = 4
+audio        = -c:a pcm_s24le
+format       = -f mxf_d10
+expect       = codec_name=mpeg2video,width=720,height=608,display_aspect_ratio=16:9,field_order=tt,r_frame_rate=25/1
+expect_audio = streams=1,channels=4,sample_rate=48000

@@ -1,0 +1,12 @@
+desc             = ProRes 422 HQ 10-bit, MOV, source size/rate, all audio streams PCM 24-bit
+category         = post
+ext              = mov
+scan             = keep
+pix_fmt          = yuv422p10le
+video            = -c:v prores_ks -profile:v 3 -vendor apl0
+video_interlaced = -flags +ildct
+audio_map        = all
+audio            = -c:a pcm_s24le
+format           = -f mov
+expect           = codec_name=prores,profile=HQ,pix_fmt=yuv422p10le
+expect_audio     = sample_rate=48000,codec_name=pcm_s24le

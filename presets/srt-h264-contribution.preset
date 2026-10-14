@@ -1,0 +1,13 @@
+# Low-latency contribution feed. Output can be a file or a URL, e.g.
+#   bcast --realtime srt-h264-contribution in.mxf "srt://host:9000?mode=caller&pkt_size=1316"
+desc             = Low-latency H.264 CBR 10 Mb/s MPEG-TS, 1 s GOP, for SRT / UDP push
+category         = distribution
+ext              = ts
+scan             = keep
+pix_fmt          = yuv420p
+video            = -c:v libx264 -preset veryfast -tune zerolatency -profile:v high -b:v 10M -minrate 10M -maxrate 10M -bufsize 5M -nal-hrd cbr -force_key_frames expr:gte(t,n_forced*1) -sc_threshold 0
+video_interlaced = -flags +ildct+ilme
+audio            = -c:a aac -b:a 192k -ac 2
+format           = -f mpegts -muxrate 12M -pcr_period 20
+expect           = codec_name=h264,width=1920,height=1080
+expect_audio     = streams=1,codec_name=aac

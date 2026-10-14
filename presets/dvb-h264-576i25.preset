@@ -1,0 +1,13 @@
+desc         = DVB H.264 576i25 16:9 CBR 4 Mb/s, MPEG-TS 6 Mb/s, MP2 256k (SD simulcast)
+category     = distribution
+ext          = ts
+size         = 720x576
+scan         = i25
+matrix       = bt601
+vf_post      = setdar=16/9
+pix_fmt      = yuv420p
+video        = -c:v libx264 -preset fast -profile:v high -level 3.0 -flags +ildct+ilme -b:v 4M -minrate 4M -maxrate 4M -bufsize 2M -nal-hrd cbr -g 12 -bf 2
+audio        = -c:a mp2 -b:a 256k -ac 2
+format       = -f mpegts -muxrate 6M -pcr_period 20 -mpegts_service_id 1 -mpegts_flags +resend_headers
+expect       = codec_name=h264,width=720,height=576,display_aspect_ratio=16:9,field_order=tt
+expect_audio = streams=1,codec_name=mp2,sample_rate=48000

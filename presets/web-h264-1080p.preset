@@ -1,0 +1,11 @@
+desc         = Web / social H.264 1080p, MP4 faststart, CRF 20, AAC 192k
+category     = ott
+ext          = mp4
+size         = 1920x1080
+scan         = p
+pix_fmt      = yuv420p
+video        = -c:v libx264 -preset slow -crf 20 -profile:v high -level 4.1 -maxrate 12M -bufsize 24M
+audio        = -c:a aac -b:a 192k -ac 2
+format       = -f mp4 -movflags +faststart
+expect       = codec_name=h264,width=1920,height=1080,field_order=progressive
+expect_audio = streams=1,codec_name=aac,sample_rate=48000

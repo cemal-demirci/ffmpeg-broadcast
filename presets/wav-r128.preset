@@ -1,0 +1,8 @@
+desc         = Broadcast WAV (BWF) 48 kHz / 24-bit, EBU R128 -23 LUFS
+category     = audio
+ext          = wav
+video        = none
+af           = loudnorm=I=-23:TP=-1:LRA=7
+audio        = -c:a pcm_s24le
+format       = -f wav -write_bext 1 -rf64 auto
+expect_audio = streams=1,codec_name=pcm_s24le,sample_rate=48000

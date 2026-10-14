@@ -1,0 +1,13 @@
+# Avid's interlaced HD mezzanine. DNxHD keeps real field coding (DNxHR does not).
+desc         = DNxHD 185x 10-bit 1080i25, MXF OP1a, 4 mono PCM tracks (Avid interlaced HD)
+category     = post
+ext          = mxf
+size         = 1920x1080
+scan         = i25
+pix_fmt      = yuv422p10le
+video        = -c:v dnxhd -b:v 185M -flags +ildct
+tracks       = 4
+audio        = -c:a pcm_s24le
+format       = -f mxf
+expect       = codec_name=dnxhd,pix_fmt=yuv422p10le,width=1920,height=1080,field_order=tt
+expect_audio = streams=4,channels=1,sample_rate=48000,codec_name=pcm_s24le

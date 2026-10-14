@@ -1,0 +1,12 @@
+desc         = XDCAM HD422 50 Mb/s 720p50, MXF OP1a, 4 mono PCM tracks
+category     = contribution
+ext          = mxf
+size         = 1280x720
+scan         = p50
+pix_fmt      = yuv422p
+video        = -c:v mpeg2video -b:v 50M -minrate 50M -maxrate 50M -bufsize 17825792 -g 12 -bf 2 -intra_vlc 1 -non_linear_quant 1 -dc 10 -qmin 1 -qmax 12 -lmin 1*QP2LAMBDA -rc_max_vbv_use 1 -rc_min_vbv_use 1
+tracks       = 4
+audio        = -c:a pcm_s24le
+format       = -f mxf
+expect       = codec_name=mpeg2video,profile=4:2:2,width=1280,height=720,field_order=progressive,r_frame_rate=50/1
+expect_audio = streams=4,channels=1,sample_rate=48000,codec_name=pcm_s24le

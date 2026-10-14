@@ -1,0 +1,13 @@
+# Panasonic AVC-Intra Class 100 (P2, many playout and archive systems).
+desc         = AVC-Intra 100 1080i25 10-bit 4:2:2, MXF OP1a, 4 mono PCM tracks
+category     = contribution
+ext          = mxf
+size         = 1920x1080
+scan         = i25
+pix_fmt      = yuv422p10le
+video        = -c:v libx264 -avcintra-class 100 -flags +ildct+ilme
+tracks       = 4
+audio        = -c:a pcm_s24le
+format       = -f mxf
+expect       = codec_name=h264,profile=High 4:2:2 Intra,pix_fmt=yuv422p10le,width=1920,height=1080,field_order=tt
+expect_audio = streams=4,channels=1,sample_rate=48000,codec_name=pcm_s24le

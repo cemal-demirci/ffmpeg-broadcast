@@ -1,0 +1,29 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck -S warning build-ffmpeg-broadcast.sh test-ffmpeg-broadcast.sh bcast
+
+  build-test:
+    name: Build FFmpeg + run every preset
+    needs: shellcheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (Ubuntu 24.04)
+        run: sudo ./build-ffmpeg-broadcast.sh --jobs "$(nproc)"
+      - name: Self-test (base scenarios + all bcast presets)
+        run: ./test-ffmpeg-broadcast.sh /opt/ffmpeg-broadcast/bin/ffmpeg
+      - name: Installed bcast works
+        run: |
+          /opt/ffmpeg-broadcast/bin/bcast --list
+          /opt/ffmpeg-broadcast/bin/ffmpeg -hide_banner -version | head -n 1

@@ -1,0 +1,13 @@
+desc             = DNxHR HQX 10-bit, MXF OP1a, progressive sources, 4 mono PCM tracks (Avid)
+category         = post
+ext              = mxf
+scan             = keep
+pix_fmt          = yuv422p10le
+video            = -c:v dnxhd -profile:v dnxhr_hqx
+on_interlaced    = DNxHR is frame-based in FFmpeg and would mark this interlaced source as progressive. Use dnxhd-185x-1080i25 for 1080i, or add --src-scan p to encode it as progressive on purpose.
+test_source      = p25
+tracks           = 4
+audio            = -c:a pcm_s24le
+format           = -f mxf
+expect           = codec_name=dnxhd,pix_fmt=yuv422p10le
+expect_audio     = streams=4,channels=1,sample_rate=48000

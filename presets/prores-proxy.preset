@@ -1,0 +1,11 @@
+desc             = ProRes 422 Proxy, MOV, for offline editing
+category         = post
+ext              = mov
+scan             = keep
+pix_fmt          = yuv422p10le
+video            = -c:v prores_ks -profile:v 0 -vendor apl0
+video_interlaced = -flags +ildct
+audio_map        = all
+audio            = -c:a pcm_s16le
+format           = -f mov
+expect           = codec_name=prores,profile=Proxy

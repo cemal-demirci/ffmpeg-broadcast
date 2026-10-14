@@ -1,0 +1,342 @@
+#!/usr/bin/env bash
+# =============================================================================
+#   ____                     _       _                 _
+#  / ___|___ _ __ ___   __ _| |  ___| | ___  _   _  __| |
+# | |   / _ \ '_ ` _ \ / _` | | / __| |/ _ \| | | |/ _` |
+# | |__|  __/ | | | | | (_| | || (__| | (_) | |_| | (_| |
+#  \____\___|_| |_| |_|\__,_|_(_)___|_|\___/ \__,_|\__,_|
+#
+#  bcast: broadcast presets for the Cemal.cloud FFmpeg build  |  MIT
+#  Source: https://github.com/cemal-demirci/ffmpeg-broadcast
+#
+#  Usage:
+#    bcast [options] <preset> <input> <output> [-- extra ffmpeg output args]
+#    bcast --list                    list presets
+#    bcast --get <preset> <key>      print one preset value
+#
+#  Options:
+#    -y               overwrite the output
+#    --show           print the ffmpeg command instead of running it
+#    --r128           EBU R128 loudness: -23 LUFS, -1 dBTP, LRA 7
+#    --tc HH:MM:SS:FF start timecode (MXF / MOV), e.g. 10:00:00:00
+#    --tracks N       number of mono audio tracks (presets that use tracks)
+#    --src-scan i|p   override the detected source scan (bad metadata)
+#    --realtime       read input at native speed (-re), for live SRT/UDP push
+#    -h, --help       show this help
+#
+#  The source is probed first. Interlaced / progressive and frame rate are
+#  detected and the right chain is built automatically, e.g. 1080p50 -> 1080i25
+#  is re-interlaced, 1080p25 is flagged PsF, HD interlaced -> SD is
+#  deinterlaced, scaled with a BT.709 -> BT.601 matrix and re-interlaced.
+#
+#  Presets live in ./presets (repo) or <prefix>/share/cemalcloud/presets
+#  (installed); override with BCAST_PRESETS. ffmpeg is taken from
+#  BCAST_FFMPEG, the same directory, /opt/ffmpeg-broadcast/bin or PATH.
+# =============================================================================
+set -Eeuo pipefail
+
+die()  { printf '\033[1;31mbcast:\033[0m %s\n' "$*" >&2; exit 1; }
+warn() { printf '\033[1;33mbcast:\033[0m %s\n' "$*" >&2; }
+usage() { sed -n '/^#  Usage:/,/^# =====/p' "$0" | sed 's/^# \{0,1\}//' | sed '$d'; exit 0; }
+
+SELF_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+
+# ---------------------------------------------------------------------------
+# Locate presets and binaries
+# ---------------------------------------------------------------------------
+PRESET_DIR=""
+for d in "${BCAST_PRESETS:-}" "$SELF_DIR/presets" "$SELF_DIR/../share/cemalcloud/presets"; do
+  [[ -n "$d" && -d "$d" ]] && { PRESET_DIR="$(cd "$d" && pwd)"; break; }
+done
+[[ -n "$PRESET_DIR" ]] || die "preset directory not found (set BCAST_PRESETS)"
+
+FFMPEG=""
+for f in "${BCAST_FFMPEG:-}" "$SELF_DIR/ffmpeg" /opt/ffmpeg-broadcast/bin/ffmpeg "$(command -v ffmpeg 2>/dev/null || true)"; do
+  [[ -n "$f" && -x "$f" ]] && { FFMPEG="$f"; break; }
+done
+FFPROBE="$(dirname "${FFMPEG:-/x}")/ffprobe"
+
+# ---------------------------------------------------------------------------
+# Preset parsing: "key = value" lines, '#' comments. Values are never eval'd.
+# ---------------------------------------------------------------------------
+declare -A P
+load_preset() {
+  local name="$1" file="$PRESET_DIR/$1.preset" line n=0
+  [[ "$name" =~ ^[a-z0-9._-]+$ && -f "$file" ]] || die "unknown preset '$name' (see: bcast --list)"
+  P=()
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    n=$((n + 1))
+    line="${line%$'\r'}"; line="${line%%#*}"
+    [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+    if [[ "$line" =~ ^[[:space:]]*([a-z_]+)[[:space:]]*=[[:space:]]*(.*)$ ]]; then
+      local key="${BASH_REMATCH[1]}" val="${BASH_REMATCH[2]}"
+      val="${val%"${val##*[![:space:]]}"}"          # trim trailing spaces
+      P[$key]="$val"
+    else
+      die "$file:$n: expected 'key = value'"
+    fi
+  done < "$file"
+}
+pget() { local v="${P[$1]:-}"; printf '%s' "${v:-${2:-}}"; }
+
+list_presets() {
+  local cat f name
+  printf '\033[1;34mCemal.cloud\033[0m bcast presets  (%s)\n' "$PRESET_DIR"
+  for cat in contribution post distribution ott audio; do
+    local header=0
+    for f in "$PRESET_DIR"/*.preset; do
+      name="$(basename "$f" .preset)"; load_preset "$name"
+      [[ "$(pget category)" == "$cat" ]] || continue
+      [[ $header -eq 0 ]] && { printf '\n  %s\n' "${cat^^}"; header=1; }
+      printf '    %-24s %s\n' "$name" "$(pget desc)"
+    done
+  done
+  echo
+}
+
+# ---------------------------------------------------------------------------
+# Arguments
+# ---------------------------------------------------------------------------
+OVERWRITE=0; SHOW=0; R128=0; TC=""; TRACKS=""; SRC_SCAN=""; REALTIME=0
+POS=(); EXTRA=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -y)          OVERWRITE=1 ;;
+    --show)      SHOW=1 ;;
+    --r128)      R128=1 ;;
+    --tc)        TC="${2:?--tc needs a value}"; shift ;;
+    --tracks)    TRACKS="${2:?--tracks needs a value}"; shift ;;
+    --src-scan)  SRC_SCAN="${2:?--src-scan needs i or p}"; shift ;;
+    --realtime)  REALTIME=1 ;;
+    --list)      list_presets; exit 0 ;;
+    --names)     for f in "$PRESET_DIR"/*.preset; do basename "$f" .preset; done; exit 0 ;;
+    --get)       load_preset "${2:?}"; pget "${3:?}"; echo; exit 0 ;;
+    -h|--help)   usage ;;
+    --)          shift; EXTRA=( "$@" ); break ;;
+    -*)          die "unknown option: $1 (see --help)" ;;
+    *)           POS+=( "$1" ) ;;
+  esac
+  shift
+done
+[[ ${#POS[@]} -eq 3 ]] || die "usage: bcast [options] <preset> <input> <output>   (bcast --list)"
+NAME="${POS[0]}"; IN="${POS[1]}"; OUT="${POS[2]}"
+[[ -n "$FFMPEG" ]] || die "ffmpeg not found (set BCAST_FFMPEG)"
+[[ -x "$FFPROBE" ]] || die "ffprobe not found next to $FFMPEG"
+[[ -z "$TRACKS" || "$TRACKS" =~ ^[1-9][0-9]?$ ]] || die "--tracks must be 1..99"
+[[ -z "$SRC_SCAN" || "$SRC_SCAN" =~ ^[ip]$ ]] || die "--src-scan must be i or p"
+[[ -z "$TC" || "$TC" =~ ^[0-9]{2}:[0-9]{2}:[0-9]{2}[:\;][0-9]{2}$ ]] || die "--tc must look like 10:00:00:00"
+load_preset "$NAME"
+
+# ---------------------------------------------------------------------------
+# Probe the source
+# ---------------------------------------------------------------------------
+TO=(); command -v timeout >/dev/null && TO=( timeout 30 )
+probe() { "${TO[@]}" "$FFPROBE" -v error "$@" "$IN" 2>/dev/null || true; }
+
+vinfo="$(probe -select_streams v:0 -show_entries stream=width,height,field_order,r_frame_rate -of default=nw=1)"
+SRC_W="$(sed -n 's/^width=//p' <<<"$vinfo")"
+SRC_H="$(sed -n 's/^height=//p' <<<"$vinfo")"
+SRC_FO="$(sed -n 's/^field_order=//p' <<<"$vinfo")"
+SRC_RATE="$(sed -n 's/^r_frame_rate=//p' <<<"$vinfo")"
+HAS_VIDEO=0; [[ -n "$SRC_W" ]] && HAS_VIDEO=1
+A_STREAMS="$(probe -select_streams a -show_entries stream=index -of csv=p=0 | grep -c . || true)"
+SRC_ACH="$(probe -select_streams a:0 -show_entries stream=channels -of csv=p=0 | head -n1 | tr -dc '0-9')"
+SRC_ACH="${SRC_ACH:-0}"
+
+# frame rate in milli-fps, e.g. 25/1 -> 25000, 30000/1001 -> 29970
+rate_m() { awk -F/ '{ d = ($2 == "" || $2 == 0) ? 1 : $2; printf "%d", ($1 / d) * 1000 + 0.5 }' <<<"${1:-0/1}"; }
+RATE="$(rate_m "$SRC_RATE")"
+
+INTERLACED=0
+[[ "$SRC_FO" =~ ^(tt|bb|tb|bt)$ ]] && INTERLACED=1
+[[ "$SRC_SCAN" == i ]] && INTERLACED=1
+[[ "$SRC_SCAN" == p ]] && INTERLACED=0
+
+# Frame-based presets would mislabel an interlaced source as progressive.
+if [[ $INTERLACED -eq 1 && -n "$(pget on_interlaced)" ]]; then
+  die "$NAME: $(pget on_interlaced)"
+fi
+
+# ---------------------------------------------------------------------------
+# Video chain
+# ---------------------------------------------------------------------------
+TW=""; TH=""
+if [[ -n "$(pget size)" ]]; then
+  [[ "$(pget size)" =~ ^([0-9]+)x([0-9]+)$ ]] || die "preset size must be WxH"
+  TW="${BASH_REMATCH[1]}"; TH="${BASH_REMATCH[2]}"
+fi
+
+scale_filter() {  # $1=W $2=H $3=interl(0/1)
+  local f="scale=$1:$2"
+  [[ "${3:-0}" -eq 1 ]] && f+=":interl=1"
+  if [[ "$(pget matrix)" == bt601 && "${SRC_H:-0}" -ge 720 && "$2" -lt 720 ]]; then
+    f+=":in_color_matrix=bt709:out_color_matrix=bt601"
+  fi
+  printf '%s' "$f"
+}
+
+VCHAIN=()
+OUT_INTERLACED=0
+build_vchain() {
+  local scan; scan="$(pget scan keep)"
+  local resize=0 il=$INTERLACED rate=$RATE
+  [[ -n "$TW" && ( "$TW" != "$SRC_W" || "$TH" != "$SRC_H" ) ]] && resize=1
+
+  case "$scan" in
+    keep)
+      [[ $resize -eq 1 ]] && VCHAIN+=( "$(scale_filter "$TW" "$TH" "$il")" )
+      OUT_INTERLACED=$il ;;
+    p)
+      [[ $il -eq 1 ]] && VCHAIN+=( "bwdif=mode=send_frame" )
+      [[ $resize -eq 1 ]] && VCHAIN+=( "$(scale_filter "$TW" "$TH")" ) ;;
+    p25|p50)
+      local want=25000; [[ "$scan" == p50 ]] && want=50000
+      if [[ $il -eq 1 ]]; then
+        if [[ $want -eq 50000 ]]; then VCHAIN+=( "bwdif=mode=send_field" ); rate=$((rate * 2))
+        else VCHAIN+=( "bwdif=mode=send_frame" ); fi
+      fi
+      [[ $rate -ne $want ]] && VCHAIN+=( "fps=$((want / 1000))" )
+      [[ $resize -eq 1 ]] && VCHAIN+=( "$(scale_filter "$TW" "$TH")" ) ;;
+    i25)
+      OUT_INTERLACED=1
+      if [[ $il -eq 1 && $rate -eq 25000 && $resize -eq 0 ]]; then
+        VCHAIN+=( "fieldorder=tff" )                         # already 25i: fix order only
+      else
+        if [[ $il -eq 1 ]]; then VCHAIN+=( "bwdif=mode=send_field" ); rate=$((rate * 2)); fi
+        if [[ $rate -eq 25000 ]]; then                       # 25p -> PsF
+          [[ $resize -eq 1 ]] && VCHAIN+=( "$(scale_filter "$TW" "$TH")" )
+        else                                                 # 50p (or other) -> 25i
+          [[ $rate -ne 50000 ]] && VCHAIN+=( "fps=50" )
+          [[ $resize -eq 1 ]] && VCHAIN+=( "$(scale_filter "$TW" "$TH")" )
+          VCHAIN+=( "tinterlace=mode=interleave_top" )
+        fi
+      fi
+      VCHAIN+=( "setfield=tff" ) ;;
+    *) die "preset scan must be keep, p, p25, p50 or i25" ;;
+  esac
+  [[ -n "$(pget vf_post)" ]] && VCHAIN+=( "$(pget vf_post)" )
+  [[ -n "$(pget pix_fmt)" ]] && VCHAIN+=( "format=$(pget pix_fmt)" )
+  return 0
+}
+
+join_by() { local IFS="$1"; shift; printf '%s' "$*"; }
+
+# ---------------------------------------------------------------------------
+# Audio chain
+# ---------------------------------------------------------------------------
+AF=()
+[[ $R128 -eq 1 && "$(pget af)" != *loudnorm* ]] && AF+=( "loudnorm=I=-23:TP=-1:LRA=7" )
+[[ -n "$(pget af)" ]] && AF+=( "$(pget af)" )
+RESAMPLE="$(pget resample 48000)"
+[[ "$RESAMPLE" != keep ]] && AF+=( "aresample=$RESAMPLE" )
+
+# ---------------------------------------------------------------------------
+# Assemble the command
+# ---------------------------------------------------------------------------
+read -r -a VARGS  <<<"$(pget video)"
+read -r -a VIARGS <<<"$(pget video_interlaced)"
+read -r -a AARGS  <<<"$(pget audio)"
+read -r -a FARGS  <<<"$(pget format)"
+
+CMD=( "$FFMPEG" -hide_banner -nostdin )
+if [[ $OVERWRITE -eq 1 ]]; then CMD+=( -y ); else CMD+=( -n ); fi
+[[ $REALTIME -eq 1 ]] && CMD+=( -re )
+CMD+=( -i "$IN" )
+
+if [[ -n "$(pget ladder)" ]]; then
+  # ---------------- HLS ABR ladder ----------------
+  [[ $HAS_VIDEO -eq 1 ]] || die "input has no video stream"
+  build_vchain
+  IFS=',' read -r -a RUNGS <<<"$(pget ladder)"
+  KEEP=()
+  for r in "${RUNGS[@]}"; do
+    [[ "$r" =~ ^([0-9]+)x([0-9]+):([0-9]+)k$ ]] || die "bad ladder rung '$r' (WxH:NNNNk)"
+    [[ -z "$SRC_H" || "${BASH_REMATCH[2]}" -le "$SRC_H" ]] && KEEP+=( "$r" )
+  done
+  [[ ${#KEEP[@]} -eq 0 ]] && KEEP=( "${RUNGS[-1]}" )         # never upscale beyond the smallest rung
+  n=${#KEEP[@]}
+  base="[0:v:0]"; [[ ${#VCHAIN[@]} -gt 0 ]] && base+="$(join_by , "${VCHAIN[@]}"),"
+  FC="${base}split=$n"; for ((i = 0; i < n; i++)); do FC+="[v$i]"; done
+  BR=(); MAP=(); VSM=()
+  for ((i = 0; i < n; i++)); do
+    [[ "${KEEP[$i]}" =~ ^([0-9]+)x([0-9]+):([0-9]+)k$ ]]
+    w="${BASH_REMATCH[1]}"; h="${BASH_REMATCH[2]}"; b="${BASH_REMATCH[3]}"
+    FC+=";[v$i]scale=$w:$h,format=yuv420p[o$i]"
+    MAP+=( -map "[o$i]" )
+    BR+=( "-b:v:$i" "${b}k" "-maxrate:v:$i" "$((b * 11 / 10))k" "-bufsize:v:$i" "$((b * 2))k" )
+    if [[ $A_STREAMS -gt 0 && "$(pget audio)" != none ]]; then VSM+=( "v:$i,a:$i" ); else VSM+=( "v:$i" ); fi
+  done
+  CMD+=( -filter_complex "$FC" "${MAP[@]}" )
+  if [[ $A_STREAMS -gt 0 && "$(pget audio)" != none ]]; then
+    for ((i = 0; i < n; i++)); do CMD+=( -map 0:a:0 ); done
+    [[ ${#AF[@]} -gt 0 ]] && CMD+=( -af "$(join_by , "${AF[@]}")" )
+    CMD+=( "${AARGS[@]}" )
+  fi
+  CMD+=( "${VARGS[@]}" "${BR[@]}" )
+  [[ ${#EXTRA[@]} -gt 0 ]] && CMD+=( "${EXTRA[@]}" )
+  CMD+=( -f hls -hls_time "$(pget hls_time 4)" -hls_playlist_type vod -hls_segment_type fmp4
+         -master_pl_name master.m3u8 -hls_segment_filename "$OUT/v%v/seg_%05d.m4s"
+         -var_stream_map "$(join_by ' ' "${VSM[@]}")" "$OUT/v%v/index.m3u8" )
+  [[ $SHOW -eq 1 ]] || mkdir -p "$OUT"
+else
+  # ---------------- single output ----------------
+  if [[ "$(pget video)" == none ]]; then
+    CMD+=( -vn )
+  else
+    [[ $HAS_VIDEO -eq 1 ]] || die "input has no video stream; preset '$NAME' needs video"
+    build_vchain
+    CMD+=( -map 0:v:0 )
+    [[ ${#VCHAIN[@]} -gt 0 ]] && CMD+=( -vf "$(join_by , "${VCHAIN[@]}")" )
+    CMD+=( "${VARGS[@]}" )
+    [[ $OUT_INTERLACED -eq 1 && ${#VIARGS[@]} -gt 0 ]] && CMD+=( "${VIARGS[@]}" )
+  fi
+
+  tracks="${TRACKS:-$(pget tracks)}"
+  chans="$(pget channels)"
+  if [[ "$(pget audio)" == none || $A_STREAMS -eq 0 ]]; then
+    CMD+=( -an )
+  elif [[ -n "$tracks" ]]; then
+    # N mono tracks: source channel i -> track i, missing channels are silent
+    FC="[0:a:0]"
+    if [[ ${#AF[@]} -gt 0 ]]; then FC+="$(join_by , "${AF[@]}"),"; fi
+    FC+="asplit=$tracks"
+    for ((i = 0; i < tracks; i++)); do FC+="[s$i]"; done
+    for ((i = 0; i < tracks; i++)); do
+      if [[ $i -lt $SRC_ACH ]]; then FC+=";[s${i}]pan=mono|c0=c${i}[m${i}]"; else FC+=";[s${i}]pan=mono|c0=0*c0[m${i}]"; fi
+    done
+    CMD+=( -filter_complex "$FC" )
+    for ((i = 0; i < tracks; i++)); do CMD+=( -map "[m$i]" ); done
+    CMD+=( "${AARGS[@]}" )
+  elif [[ -n "$chans" ]]; then
+    # one stream with N channels (e.g. D10 AES3 4/8 ch)
+    pan="pan=${chans}c"
+    for ((i = 0; i < chans; i++)); do
+      if [[ $i -lt $SRC_ACH ]]; then pan+="|c$i=c$i"; else pan+="|c$i=0*c0"; fi
+    done
+    CMD+=( -map 0:a:0 -af "$(join_by , "${AF[@]}" "$pan")" "${AARGS[@]}" )
+  else
+    if [[ "$(pget audio_map first)" == all ]]; then CMD+=( -map 0:a ); else CMD+=( -map 0:a:0 ); fi
+    [[ ${#AF[@]} -gt 0 ]] && CMD+=( -af "$(join_by , "${AF[@]}")" )
+    CMD+=( "${AARGS[@]}" )
+  fi
+
+  [[ -n "$TC" ]] && CMD+=( -timecode "$TC" )
+  CMD+=( "${FARGS[@]}" )
+  [[ ${#EXTRA[@]} -gt 0 ]] && CMD+=( "${EXTRA[@]}" )
+  CMD+=( "$OUT" )
+fi
+
+# ---------------------------------------------------------------------------
+# Run
+# ---------------------------------------------------------------------------
+src_desc="no video"
+if [[ $HAS_VIDEO -eq 1 ]]; then
+  src_desc="${SRC_W}x${SRC_H} $( [[ $INTERLACED -eq 1 ]] && echo interlaced || echo progressive ) $(awk -v r="$RATE" 'BEGIN { printf "%g", r / 1000 }') fps"
+fi
+printf '\033[1;34mCemal.cloud bcast\033[0m  %s  |  source: %s, %s audio stream(s)\n' "$NAME" "$src_desc" "$A_STREAMS" >&2
+
+if [[ $SHOW -eq 1 ]]; then
+  printf '%q ' "${CMD[@]}"; echo
+  exit 0
+fi
+exec "${CMD[@]}"

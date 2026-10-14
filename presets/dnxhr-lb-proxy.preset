@@ -1,0 +1,10 @@
+desc         = DNxHR LB 720p proxy, MOV, progressive
+category     = post
+ext          = mov
+size         = 1280x720
+scan         = p
+pix_fmt      = yuv422p
+video        = -c:v dnxhd -profile:v dnxhr_lb
+audio        = -c:a pcm_s16le
+format       = -f mov
+expect       = codec_name=dnxhd,profile=DNXHR LB,width=1280,height=720

@@ -1,0 +1,12 @@
+# DVB / IPTV HD service: H.264 High@4.0 interlaced, CBR with HRD, constant TS muxrate.
+desc         = DVB H.264 1080i25 CBR 12 Mb/s, MPEG-TS 15 Mb/s, MP2 256k
+category     = distribution
+ext          = ts
+size         = 1920x1080
+scan         = i25
+pix_fmt      = yuv420p
+video        = -c:v libx264 -preset fast -profile:v high -level 4.0 -flags +ildct+ilme -b:v 12M -minrate 12M -maxrate 12M -bufsize 6M -nal-hrd cbr -g 12 -bf 2
+audio        = -c:a mp2 -b:a 256k -ac 2
+format       = -f mpegts -muxrate 15M -pcr_period 20 -mpegts_service_id 1 -mpegts_flags +resend_headers
+expect       = codec_name=h264,profile=High,width=1920,height=1080,field_order=tt
+expect_audio = streams=1,codec_name=mp2,sample_rate=48000
