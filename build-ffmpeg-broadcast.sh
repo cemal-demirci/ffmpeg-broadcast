@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 # =============================================================================
-#   ____                     _       _                 _
-#  / ___|___ _ __ ___   __ _| |  ___| | ___  _   _  __| |
-# | |   / _ \ '_ ` _ \ / _` | | / __| |/ _ \| | | |/ _` |
-# | |__|  __/ | | | | | (_| | || (__| | (_) | |_| | (_| |
-#  \____\___|_| |_| |_|\__,_|_(_)___|_|\___/ \__,_|\__,_|
-#
 #  Lean FFmpeg build for broadcast / playout / OTT  |  https://cemal.cloud
 #  Source: https://github.com/cemal-demirci/ffmpeg-broadcast
 #  Script: MIT. Resulting binary: GPL v2+ (see below).
