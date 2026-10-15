@@ -1,0 +1,8 @@
+Required Notice: Copyright (C) 2026 Cemal Demirci (Cemal.cloud) (https://github.com/cemal-demirci/ffmpeg-broadcast)
+
+Licensed under the PolyForm Noncommercial License 1.0.0 (see LICENSE).
+Free for personal use, education, research, nonprofit organizations and government institutions.
+Commercial use, including use inside a company, needs a commercial license: cemaldemirci0034@gmail.com
+
+This covers the scripts in this repository only. The FFmpeg binary they build includes
+x264 and x265 and is licensed under the GNU GPL v2 or later.

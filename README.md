@@ -1,6 +1,6 @@
 # FFmpeg Broadcast · Cemal.cloud
 
-[![Lisans: GPL-3.0](https://img.shields.io/badge/lisans-GPL--3.0-blue)](LICENSE)
+[![Lisans: PolyForm Noncommercial](https://img.shields.io/badge/lisans-ticari%20olmayan%20kullan%C4%B1m%20%C3%BCcretsiz-orange)](LICENSE)
 [![Denetim](https://github.com/cemal-demirci/ffmpeg-broadcast/actions/workflows/ci.yml/badge.svg)](https://github.com/cemal-demirci/ffmpeg-broadcast/actions)
 ![FFmpeg](https://img.shields.io/badge/FFmpeg-9.0.2-007808)
 ![Preset](https://img.shields.io/badge/preset-19-e3b341)
@@ -151,7 +151,13 @@ yapılmadı. `--with-nvenc` CI'da test edilmiyor (runner'larda NVIDIA kart yok).
 
 ## Lisans
 
-Scriptler [GPL-3.0](LICENSE): değiştirilmiş halini dağıtan herkes kaynak kodunu da aynı lisansla açık paylaşmak zorundadır. Oluşan FFmpeg dosyası x264 ve x265 içerdiği için **GPL v2+** lisanslıdır.
+[PolyForm Noncommercial 1.0.0](LICENSE). Kişisel kullanım, eğitim, araştırma, kâr amacı gütmeyen kuruluşlar ve kamu kurumları için **ücretsizdir**.
+
+**Ticari kullanım** için ticari lisans gerekir: bir şirketin kendi bilgisayarlarında kullanması, müşterilere hizmet olarak sunulması, bir ürüne eklenmesi ya da satılması. İletişim: [cemaldemirci0034@gmail.com](mailto:cemaldemirci0034@gmail.com)
+
+Bu lisans yalnızca bu repodaki scriptleri kapsar. Oluşan FFmpeg dosyası x264 ve x265 içerdiği için **GPL v2+** lisanslıdır.
+
+Kendi sorumluluğunuzda kullanın.
 
 Copyright (C) 2026 Cemal Demirci (Cemal.cloud)
 
@@ -171,4 +177,4 @@ ladder, web / proxy MP4 and BWF R128.
   ffmpeg command, `--r128`, `--tc`, `--tracks`, `--realtime` adjust it.
 - **Tested:** every commit builds FFmpeg from source and runs 59 checks; every preset is encoded and verified with ffprobe.
   Synthetic test signals only; no playout-server acceptance test; NVENC not covered.
-- **License:** scripts GPL-3.0-or-later; the resulting FFmpeg binary is GPL v2+ (x264 / x265).
+- **License:** scripts PolyForm Noncommercial 1.0.0 (commercial license: cemaldemirci0034@gmail.com); the resulting FFmpeg binary is GPL v2+ (x264 / x265).
