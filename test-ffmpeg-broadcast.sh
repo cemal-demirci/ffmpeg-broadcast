@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  FFmpeg broadcast build self-test  |  https://cemal.cloud  |  MIT
+#  FFmpeg broadcast build self-test  |  https://cemal.cloud  |  GPL-3.0-or-later
 #  Source: https://github.com/cemal-demirci/ffmpeg-broadcast
 #
 #  Runs real encode/mux/demux round trips for every broadcast workflow the

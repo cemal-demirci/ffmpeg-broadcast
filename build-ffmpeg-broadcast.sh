@@ -2,7 +2,7 @@
 # =============================================================================
 #  Lean FFmpeg build for broadcast / playout / OTT  |  https://cemal.cloud
 #  Source: https://github.com/cemal-demirci/ffmpeg-broadcast
-#  Script: MIT. Resulting binary: GPL v2+ (see below).
+#  Script: GPL-3.0-or-later. Resulting binary: GPL v2+ (see below).
 #
 #  Starts from --disable-everything and enables only what a broadcast
 #  workflow actually uses:
