@@ -1047,9 +1047,11 @@ function enqueueRemote(id) {
   const f = rform(id);
   if (!f.input) return;
   if (f.tc && !TC_RE.test(f.tc)) { toast('err', 'Timecode 10:00:00:00 biçiminde olmalı.'); return; }
-  S.jobs.push({ id: newId(), where: id, input: f.input, name: base(f.input), preset: f.preset, status: 'queued', log: [],
+  const jid = newId();
+  S.jobs.push({ id: jid, where: id, input: f.input, name: base(f.input), preset: f.preset, status: 'queued', log: [],
     o: { preset: f.preset, input: f.input, output: f.output || undefined, r128: f.r128, overwrite: f.overwrite, tc: f.tc } });
   renderServerDetail(); pump();
+  setTimeout(() => { const el = document.querySelector(`[data-job="${jid}"]`); if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 50);
 }
 
 function browseModal(id) {

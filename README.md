@@ -2,6 +2,7 @@
 
 [![Lisans: PolyForm Noncommercial](https://img.shields.io/badge/lisans-ticari%20olmayan%20kullan%C4%B1m%20%C3%BCcretsiz-orange)](LICENSE)
 [![Denetim](https://github.com/cemal-demirci/ffmpeg-broadcast/actions/workflows/ci.yml/badge.svg)](https://github.com/cemal-demirci/ffmpeg-broadcast/actions)
+[![bcast Studio](https://github.com/cemal-demirci/ffmpeg-broadcast/actions/workflows/studio.yml/badge.svg)](https://github.com/cemal-demirci/ffmpeg-broadcast/actions/workflows/studio.yml)
 ![FFmpeg](https://img.shields.io/badge/FFmpeg-9.0.2-007808)
 ![Preset](https://img.shields.io/badge/preset-19-e3b341)
 
@@ -11,11 +12,13 @@ Playout sunucusu XDCAM dosyasını reddetti. Alan sırası ters çıktı, ekrand
 stereo track'e gitti, reji sessiz kaldı. Yayında çalışan herkes bu filmi en az bir kez izlemiştir.
 
 FFmpeg bunların hepsini yapabilir; sorun, her format için doğru düzineyi ezberlemek ve kaynağın interlaced mi
-progressive mi olduğunu her seferinde hesaba katmaktır. Bu repo iki şey getirir:
+progressive mi olduğunu her seferinde hesaba katmaktır. Bu repo üç şey getirir:
 
 - **Sade build:** yalnızca yayın iş akışında kullanılan codec, format ve filtreler. Tek, 15 MB'lık statik dosya.
 - **`bcast`:** 19 hazır yayın preseti. Kaynağa bakar, alan sırasını, frame rate'i, renk matrisini ve ses track
   düzenini kendisi ayarlar.
+- **[bcast Studio](#bcast-studio):** aynı presetler Windows ve macOS'ta pencereden. Ya da IP adresini yazdığınız bir
+  sunucuya kurulup işler orada çalışır.
 
 ## Elle mi, bcast ile mi?
 
@@ -38,7 +41,53 @@ bcast xdcam-hd422-1080i25 in.mov out.mxf
 Kaynak 1080i25 olsaydı yeniden interlace etmez, 1080p25 olsaydı PsF olarak işaretlerdi. Komutu çalıştırmadan görmek
 için `--show`.
 
-## Kurulum
+## bcast Studio
+
+![bcast Studio, Windows'ta bir kuyruk çalışırken](docs/studio.png)
+
+Terminal açmak istemeyenler ve dosyası başka bir makinede duranlar için. Windows ve macOS'ta çalışan bir uygulama,
+iki ekranı var.
+
+**Bu bilgisayar.** Dosyaları pencereye bırakın, preseti seçin, kuyruğa ekleyin. Her preset, siz bir şey çalıştırmadan
+önce kaynaklara uyup uymadığını söyler: 1080i bir dosyada DNxHR HQX'i seçerseniz nedeni orada yazar, iş hiç başlamaz.
+İlerleme, hız ve kalan süre canlı gelir. İptal ederseniz yarım dosya bırakmaz. **Komut** düğmesi, çalıştırmadan, tam
+FFmpeg komutunu gösterir.
+
+FFmpeg uygulamayla birlikte gelmez. Bilgisayarda bulamazsa tek tıkla indirir (Windows: BtbN FFmpeg-Builds, macOS:
+Martin Riedl build sunucusu, ikisi de x264, x265 ve SRT içerir) ya da sizin FFmpeg'inizi kullanır.
+
+Pencere, sunucudaki `bcast` ile aynı komutu kurar. Preset motoru bash `bcast`'in JavaScript'e satır satır çevirisidir
+ve CI her commit'te ikisine aynı dosyaları verip ürettikleri ffmpeg komutlarını bayt bayt karşılaştırır: **532 durumda
+450 aynı komut, 82 aynı ret, 0 fark.**
+
+![Sunucuya kurulum, derleme aşamasında](docs/studio-servers.png)
+
+**Sunucular.** IP adresi, kullanıcı adı, şifre ya da SSH anahtarı (ssh-agent da olur). Uygulama:
+
+- Sunucunun kimliğini (SHA256 parmak izi) ilk bağlantıda kaydeder. Sonradan değişirse bağlanmaz, iki parmak izini
+  yan yana gösterip sorar.
+- root, şifresiz sudo ya da şifreli sudo ile çalışır.
+- **Sunucuya kur** ile ffmpeg-broadcast'i orada kaynaktan derler. Derleme sunucuda arka planda sürer: bağlantı kopsa da,
+  uygulamayı kapatsanız da devam eder; tekrar açtığınızda kaldığı yerden izlenir. Aşamalar ve derlenen dosya sayısı
+  canlı görünür.
+- Sunucudaki dosyayı kendi dosya tarayıcısıyla seçtirir, işi orada çalıştırır, ilerlemeyi buraya getirir. Dosya
+  sunucudan çıkmaz.
+
+Şifreler macOS Anahtar Zinciri ya da Windows DPAPI ile şifrelenip saklanır. Güvenli anahtar deposu olmayan bir sistemde
+diske hiç yazılmaz, yalnızca uygulama açıkken hatırlanır.
+
+| İndir | |
+|---|---|
+| Windows 10 / 11 | `bcast-Studio-…-windows-setup.exe`, kurulumsuz: `…-windows-portable.exe` |
+| macOS 12+ (Apple silicon ve Intel) | `bcast-Studio-…-macos-universal.dmg` |
+
+[Releases](https://github.com/cemal-demirci/ffmpeg-broadcast/releases/latest) sayfasında. Uygulama Apple / Microsoft
+sertifikasıyla imzalı değil. macOS'ta ilk açılışta *Sistem Ayarları → Gizlilik ve Güvenlik → Yine de Aç*, Windows'ta
+SmartScreen'de *Ek bilgi → Yine de çalıştır*.
+
+Kaynaktan çalıştırmak için: `cd studio && npm ci && npm start`
+
+## Kurulum (komut satırı)
 
 ```bash
 git clone https://github.com/cemal-demirci/ffmpeg-broadcast.git && cd ffmpeg-broadcast
@@ -134,6 +183,11 @@ satırları test tarafından otomatik kontrol edilir.
 - **Derleme:** gereken paketleri `apt` ile kurar, FFmpeg kaynağını GitHub'daki resmi depodan indirir, `/opt/ffmpeg-broadcast`'e kurar.
 - **bcast:** yalnızca `ffprobe` ile kaynağı okur ve `ffmpeg`'i çalıştırır. Preset dosyaları hiçbir zaman komut olarak
   çalıştırılmaz. `-y` vermezseniz var olan bir dosyanın üzerine yazmaz.
+- **bcast Studio, bu bilgisayarda:** ayarlar, sunucu listesi, sunucu kimlikleri ve indirilen FFmpeg uygulamanın kendi
+  veri klasöründe durur. Çıktıyı kaynağın yanına ya da seçtiğiniz klasöre yazar, başka bir yere dokunmaz.
+- **bcast Studio, sunucuda:** kurulum paketini `/tmp`'de geçici bir klasöre yükler (kurulumdan sonra silinir), kaynak
+  kodu ve kurulum kaydını `/var/tmp/cemalcloud-ffmpeg-broadcast`'te tutar, `/opt/ffmpeg-broadcast`'e kurar. Sistemdeki
+  FFmpeg'e dokunmaz. İşleri sizin kullanıcınızla çalıştırır; root yalnızca kurulumda gerekir.
 
 ## Test ettik
 
@@ -146,8 +200,18 @@ Actions FFmpeg'i sıfırdan derler (yaklaşık 3 dakika) ve bu testi çalıştı
 | Temel senaryolar | MXF, MPEG-TS, HLS, DASH, GXF, SRT ve UDP canlı aktarım, EBU R128, kalite kontrol filtreleri |
 | Presetler | 19 preset gerçek bir kaynakla kodlandı. Codec, profil, çözünürlük, alan sırası, frame rate, ses track'leri ve örnekleme hızı ffprobe ile doğrulandı. 1080p50'den yeniden interlace, 1080p25'ten PsF ve DNxHR'nin interlaced kaynağı reddetmesi ayrıca test edildi. |
 
+**bcast Studio** ayrıca her değişiklikte, kullanıcı gibi tıklanarak test edilir (Playwright uygulamayı açar, düğmelere
+basar, yazılan dosyaları ffprobe ile kontrol eder):
+
+| | |
+|---|---|
+| Windows ve macOS | Paketlenmiş uygulama açıldı, FFmpeg uygulamanın içinden indirildi (4 saniye), 19 presetin hepsi destekleniyor. 3 kaynak eklendi, 7 iş kuyrukta çalıştı: XDCAM HD422 1080i TFF ve 4 mono ses track'i, BWF -23 LUFS, 4 kademeli HLS. Var olan çıktının üzerine yazma reddedildi, iptal yarım dosya bırakmadı. |
+| Sunucu | Linux'ta uygulama bir SSH sunucusunu IP ile ekledi (sudo şifreli), FFmpeg'i orada kaynaktan derleyip kurdu (4 çekirdekte 2.7 dakika, 1005 dosya), sunucudaki dosyayı tarayıcıdan seçip `dvb-h264-1080i25` çalıştırdı. Çıktı H.264 1080i TFF. Değişen sunucu kimliği ve yanlış şifre de ayrıca test edildi. |
+| Motor | 19 preset x 7 kaynak x 4 seçenek: 532 durumda bash `bcast` ile bayt bayt aynı komut. |
+
 Dürüst not: testler üretilmiş renk barları ve tonlarla yapılıyor, gerçek bir playout sunucusunda kabul testi
-yapılmadı. `--with-nvenc` CI'da test edilmiyor (runner'larda NVIDIA kart yok).
+yapılmadı. `--with-nvenc` CI'da test edilmiyor (runner'larda NVIDIA kart yok). Sunucu testi aynı makinedeki SSH
+sunucusuyla yapılıyor, gerçek ağ gecikmesi yok. Uygulama imzasız, sunucu kurulumu Ubuntu / Debian (apt) bekliyor.
 
 ## Lisans
 
@@ -155,7 +219,8 @@ yapılmadı. `--with-nvenc` CI'da test edilmiyor (runner'larda NVIDIA kart yok).
 
 **Ticari kullanım** için ticari lisans gerekir: bir şirketin kendi bilgisayarlarında kullanması, müşterilere hizmet olarak sunulması, bir ürüne eklenmesi ya da satılması. İletişim: [cemaldemirci0034@gmail.com](mailto:cemaldemirci0034@gmail.com)
 
-Bu lisans yalnızca bu repodaki scriptleri kapsar. Oluşan FFmpeg dosyası x264 ve x265 içerdiği için **GPL v2+** lisanslıdır.
+Bu lisans bu repodaki scriptleri ve bcast Studio'yu kapsar. Oluşan ya da uygulamanın indirdiği FFmpeg dosyası x264 ve
+x265 içerdiği için **GPL v2+** lisanslıdır. bcast Studio'nun kullandığı Electron ve ssh2 MIT lisanslıdır.
 
 Kendi sorumluluğunuzda kullanın.
 
@@ -175,6 +240,13 @@ ladder, web / proxy MP4 and BWF R128.
   spread over mono tracks for MXF. DNxHR refuses interlaced sources instead of mislabelling them.
 - **Usage:** `sudo ./build-ffmpeg-broadcast.sh`, then `bcast xdcam-hd422-1080i25 in.mov out.mxf`; `--show` prints the
   ffmpeg command, `--r128`, `--tc`, `--tracks`, `--realtime` adjust it.
+- **bcast Studio:** a desktop app for Windows and macOS. Drop files, pick a preset (each one says up front whether it
+  fits the sources), queue, watch progress, cancel without leftovers, see the exact command. FFmpeg is found on the
+  computer or downloaded from the app. Servers are added by IP: host key pinning, sudo with a password, FFmpeg built
+  there from the app (keeps going if the connection drops), jobs run on the server with progress shown locally.
+  Passwords are kept in the macOS Keychain / Windows DPAPI. Unsigned builds on the Releases page.
 - **Tested:** every commit builds FFmpeg from source and runs 59 checks; every preset is encoded and verified with ffprobe.
-  Synthetic test signals only; no playout-server acceptance test; NVENC not covered.
+  The app is driven like a user on Windows, macOS and Linux (FFmpeg downloaded from the app, 7 jobs verified with
+  ffprobe, a server added by IP and FFmpeg built there in 2.7 min), and its JS engine builds byte-for-byte the same
+  command as bash `bcast` in 532 cases. Synthetic test signals only; no playout-server acceptance test; NVENC not covered.
 - **License:** scripts PolyForm Noncommercial 1.0.0 (commercial license: cemaldemirci0034@gmail.com); the resulting FFmpeg binary is GPL v2+ (x264 / x265).
