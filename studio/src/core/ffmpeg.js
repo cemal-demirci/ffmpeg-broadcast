@@ -130,7 +130,17 @@ async function extract(archive, dir) {
   let r;
   if (archive.endsWith('.tar.xz')) r = await exec('tar', ['-xJf', archive, '-C', dir], 300000);
   else if (process.platform === 'darwin') r = await exec('ditto', ['-x', '-k', archive, dir], 300000);
-  else r = await exec('tar', ['-xf', archive, '-C', dir], 300000);   // bsdtar reads zip on Windows 10+
+  else if (process.platform === 'win32') {
+    // Windows' own bsdtar reads zip. Call it by full path: a GNU tar from Git or MSYS
+    // earlier in PATH cannot. Very old Windows 10 builds have no tar: use PowerShell.
+    const sysTar = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
+    if (isFile(sysTar)) r = await exec(sysTar, ['-xf', archive, '-C', dir], 300000);
+    else {
+      const lit = (p) => `'${p.replace(/'/g, "''")}'`;
+      r = await exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+        `Expand-Archive -LiteralPath ${lit(archive)} -DestinationPath ${lit(dir)} -Force`], 600000);
+    }
+  } else r = await exec('unzip', ['-q', '-o', archive, '-d', dir], 300000);
   if (!r.ok) throw new Error(`could not unpack ${path.basename(archive)}: ${r.stderr || r.err}`);
 }
 

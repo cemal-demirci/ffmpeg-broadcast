@@ -300,6 +300,7 @@ select.input { appearance: none; padding-right: 30px; background-image: linear-g
 .opt-grid .s6 { grid-column: span 6; }
 .opt-grid .switch-row { padding: 2px 0; }
 @media (max-width: 1180px) { .opt-grid .s2 { grid-column: span 3; } .opt-grid .s2:last-of-type { grid-column: span 6; } }
+@media (max-width: 1100px) { .opt-grid .s3 { grid-column: span 6; } .local-grid { grid-template-columns: minmax(0, 1fr) 320px; } }
 
 /* ---- jobs ------------------------------------------------------------------ */
 .jobs { display: flex; flex-direction: column; gap: 8px; }

@@ -7,8 +7,12 @@
 
 const fs = require('fs');
 
-module.exports = function notice(title, message) {
-  const line = `::notice title=${title}::${message}\n`;
+function write(level, title, message) {
+  const msg = String(message).replace(/%/g, '%25').replace(/\r/g, '').replace(/\n/g, '%0A');
+  const line = `::${level} title=${title}::${msg}\n`;
   if (process.env.BCAST_NOTICES) fs.appendFileSync(process.env.BCAST_NOTICES, line);
   else if (process.env.GITHUB_ACTIONS) process.stdout.write(line);
-};
+}
+
+module.exports = (title, message) => write('notice', title, message);
+module.exports.error = (title, message) => write('error', title, message);

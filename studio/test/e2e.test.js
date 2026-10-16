@@ -19,6 +19,16 @@ const { execFileSync } = require('child_process');
 const { _electron } = require('playwright-core');
 const notice = require('./notice');
 
+/** node:test's test(), but a failure also lands on the CI run page with its message. */
+function step(name, opts, fn) {
+  return test(name, opts, async (t) => {
+    try { await fn(t); } catch (e) {
+      notice.error(`${platform}: ${name}`, `${e.message}${e.extraLog ? `\n${e.extraLog}` : ''}`.slice(0, 6000));
+      throw e;
+    }
+  });
+}
+
 const env = process.env;
 const APP_DIR = path.resolve(__dirname, '..');
 const SHOTS = env.BCAST_E2E_SHOTS ? path.resolve(env.BCAST_E2E_SHOTS) : null;
@@ -72,7 +82,7 @@ test.after(async () => {
   if (notes.length) notice(`bcast Studio app (${platform})`, notes.join('; '));
 });
 
-test('FFmpeg is found, or downloaded from the app', { timeout: 15 * 60 * 1000 }, async () => {
+step('FFmpeg is found, or downloaded from the app', { timeout: 15 * 60 * 1000 }, async () => {
   if (env.BCAST_E2E_DOWNLOAD === '1') {
     const t0 = Date.now();
     const found = await win.evaluate(() => window.studio.ffmpegStatus());
@@ -80,7 +90,10 @@ test('FFmpeg is found, or downloaded from the app', { timeout: 15 * 60 * 1000 },
     else await win.click('#ffBanner button:has-text("indir")');
     await win.waitForSelector('#ffDlBar', { timeout: 30000 });
     await shot('01-ffmpeg-download');
-    await win.waitForFunction(() => !document.querySelector('#ffDlBar') && document.querySelector('#ffPill.ok'), null, { timeout: 14 * 60 * 1000 });
+    await win.waitForFunction(() => (!document.querySelector('#ffDlBar') && document.querySelector('#ffPill.ok')) ||
+      document.querySelector('.toast.err'), null, { timeout: 14 * 60 * 1000, polling: 500 });
+    const err = await win.evaluate(() => { const t = document.querySelector('.toast.err'); return t && t.innerText; });
+    assert.ok(!err, `download failed in the app: ${err}`);
     ff = await win.evaluate(() => window.studio.ffmpegStatus());
     assert.strictEqual(ff.source, 'indirilen', 'the app uses the FFmpeg it downloaded');
     notes.push(`FFmpeg ${ff.version} downloaded from the app in ${((Date.now() - t0) / 1000).toFixed(0)} s`);
@@ -104,7 +117,7 @@ test('FFmpeg is found, or downloaded from the app', { timeout: 15 * 60 * 1000 },
     '-ac', '2', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '30', '-c:a', 'aac', path.join(MEDIA, 'uzun_1080p50.mp4'));
 });
 
-test('sources are read and every preset says whether it fits', async () => {
+step('sources are read and every preset says whether it fits', {}, async () => {
   await mockOpen(['haber_1080i25.mxf', 'spor_1080p50.mp4', 'jenerik.wav'].map((f) => path.join(MEDIA, f)));
   await win.click('#dropzone');
   await win.waitForFunction(() => document.querySelectorAll('#sourcesCard .src .fit .badge').length === 3 &&
@@ -124,7 +137,7 @@ test('sources are read and every preset says whether it fits', async () => {
   notes.push('fit check: 3 sources, DNxHR HQX refuses 1080i before running');
 });
 
-test('the command is shown before running, and it is what runs', async () => {
+step('the command is shown before running, and it is what runs', {}, async () => {
   await win.click('[data-preset="xdcam-hd422-1080i25"]');
   await win.click('#btnShow');
   await win.waitForSelector('#cmdText');
@@ -134,7 +147,7 @@ test('the command is shown before running, and it is what runs', async () => {
   await win.keyboard.press('Escape');
 });
 
-test('a queue runs on this computer and writes correct broadcast files', { timeout: 10 * 60 * 1000 }, async () => {
+step('a queue runs on this computer and writes correct broadcast files', { timeout: 10 * 60 * 1000 }, async () => {
   await win.click('[data-preset="xdcam-hd422-1080i25"]');
   await win.waitForFunction(() => /2 işi/.test(document.querySelector('#btnQueue').textContent));
   await win.click('#btnQueue');
@@ -176,7 +189,7 @@ test('a queue runs on this computer and writes correct broadcast files', { timeo
   notes.push(`${jobs.length} local jobs: XDCAM 1080i TFF with 4 mono tracks, BWF R128, HLS ladder with ${variants.length} renditions`);
 });
 
-test('an existing output is refused unless "Üzerine yaz" is on', async () => {
+step('an existing output is refused unless "Üzerine yaz" is on', {}, async () => {
   if (await win.$('#jobsCard button:has-text("Bitenleri temizle")')) await win.click('#jobsCard button:has-text("Bitenleri temizle")');
   await mockOpen([path.join(MEDIA, 'jenerik.wav')]);
   await win.click('#sourcesCard button:has-text("Temizle")');
@@ -196,7 +209,7 @@ test('an existing output is refused unless "Üzerine yaz" is on', async () => {
   await win.click('#jobsCard .job [title="Listeden kaldır"]');
 });
 
-test('cancel stops FFmpeg and removes the half-written file', { timeout: 5 * 60 * 1000 }, async () => {
+step('cancel stops FFmpeg and removes the half-written file', { timeout: 5 * 60 * 1000 }, async () => {
   if (await win.$('#jobsCard button:has-text("Bitenleri temizle")')) await win.click('#jobsCard button:has-text("Bitenleri temizle")');
   await mockOpen([path.join(MEDIA, 'uzun_1080p50.mp4')]);
   await win.click('#sourcesCard button:has-text("Temizle")');
@@ -215,7 +228,7 @@ test('cancel stops FFmpeg and removes the half-written file', { timeout: 5 * 60 
 
 const ssh = env.BCAST_E2E_SSH_HOST ? { host: env.BCAST_E2E_SSH_HOST, port: env.BCAST_E2E_SSH_PORT || '22', user: env.BCAST_E2E_SSH_USER, pass: env.BCAST_E2E_SSH_PASS } : null;
 
-test('a server is added by IP, set up and used from the app', { skip: !ssh && 'BCAST_E2E_SSH_HOST not set', timeout: 90 * 60 * 1000 }, async () => {
+step('a server is added by IP, set up and used from the app', { skip: !ssh && 'BCAST_E2E_SSH_HOST not set', timeout: 90 * 60 * 1000 }, async () => {
   await win.click('#navServers');
   await shot('06-servers-empty');
   await win.click('#btnAddServerHero');
@@ -237,19 +250,30 @@ test('a server is added by IP, set up and used from the app', { skip: !ssh && 'B
   const full = env.BCAST_E2E_FULL_INSTALL === '1';
   if (full) {
     await win.click('#btnInstall');
-    await win.waitForFunction(() => /dosya derlendi/.test((document.querySelector('[id^="termMeta-"]') || {}).textContent || '') &&
-      parseInt(document.querySelector('[id^="termMeta-"]').textContent.match(/(\d+) dosya/)[1], 10) > 300, null, { timeout: 40 * 60 * 1000, polling: 2000 });
+    await win.waitForFunction(() => {
+      const m = document.querySelector('[id^="termMeta-"]');
+      const span = m && [...m.children].find((c) => /dosya derlendi/.test(c.textContent));
+      return span && parseInt(span.textContent, 10) > 300;
+    }, null, { timeout: 40 * 60 * 1000, polling: 2000 });
     await shot('08-server-building');
   } else {
     await win.click('text=Presetleri güncelle');
   }
   await win.waitForFunction(() => /Kurulum bitti|koduyla bitti/.test(document.querySelector('#serverDetail').innerText), null, { timeout: 80 * 60 * 1000, polling: 2000 });
   const result = await win.evaluate(() => document.querySelector('#serverDetail .note.ok, #serverDetail .note.err').innerText);
-  assert.match(result, /Kurulum bitti/, result);
+  if (!/Kurulum bitti/.test(result)) {
+    const e = new Error(`install: ${result}`);
+    e.extraLog = await win.evaluate(() => [...document.querySelectorAll('[id^="term-"] > div')].slice(-25).map((d) => d.textContent).join('\n'));
+    throw e;
+  }
   await win.waitForFunction(() => /preset/.test((document.querySelector('#serverDetail .card-head .badge.ok') || {}).textContent || ''), null, { timeout: 60000 });
   const mins = ((Date.now() - t0) / 60000).toFixed(1);
-  const compiled = await win.evaluate(() => ((document.querySelector('[id^="termMeta-"]') || {}).textContent || '').match(/(\d+) dosya/));
-  notes.push(full ? `server: FFmpeg built and installed over SSH from the app in ${mins} min (${compiled ? compiled[1] : '?'} files compiled)` : `server: presets updated over SSH in ${mins} min`);
+  const compiled = await win.evaluate(() => {
+    const m = document.querySelector('[id^="termMeta-"]');
+    const span = m && [...m.children].find((c) => /dosya derlendi/.test(c.textContent));
+    return span ? parseInt(span.textContent, 10) : null;
+  });
+  notes.push(full ? `server: FFmpeg built and installed over SSH from the app in ${mins} min (${compiled} files compiled)` : `server: presets updated over SSH in ${mins} min`);
 
   // a job on the server, picked with the remote browser
   const src = '/tmp/bcast-e2e/haber_1080i25.mxf';

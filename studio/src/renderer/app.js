@@ -98,6 +98,13 @@ function fmtSize(b) {
   if (b < 1024 ** 3) return `${(b / 1024 ** 2).toFixed(1)} MB`;
   return `${(b / 1024 ** 3).toFixed(2)} GB`;
 }
+/** n9.0.2-cemalcloud -> n9.0.2, 9.0.2-https://… -> 9.0.2, N-127564-g3c92f003c7-20261015 -> master 2026-10-15 */
+function shortVersion(v) {
+  v = String(v || '').replace(/-https?:\/\/.*$/, '').replace(/-cemalcloud$/, '');
+  const m = /^N-\d+-g[0-9a-f]+(?:-(\d{4})(\d{2})(\d{2}))?/.exec(v);
+  if (m) return m[1] ? `master ${m[1]}-${m[2]}-${m[3]}` : 'master';
+  return v.length > 24 ? `${v.slice(0, 22)}…` : v;
+}
 const base = (p) => String(p).split(/[\\/]/).pop();
 const plural = (n, word) => `${n} ${word}`;
 const CAT = { contribution: 'Katkı / playout', post: 'Kurgu', distribution: 'Yayın', ott: 'OTT / web', audio: 'Ses' };
@@ -268,7 +275,7 @@ function renderFf() {
   el.classList.add('ok');
   const n = Object.values(S.ff.missing || {}).filter((m) => m.length).length;
   fill(el, h('span', { class: 'dot' }),
-    h('span', { class: 'label', title: S.ff.path }, 'FFmpeg ', h('b', null, S.ff.version.replace(/-cemalcloud$/, '')), h('span', { class: 'faint' }, ` · ${S.ff.source}`),
+    h('span', { class: 'label', title: `${S.ff.version}\n${S.ff.path}` }, 'FFmpeg ', h('b', null, shortVersion(S.ff.version)), h('span', { class: 'faint' }, ` · ${S.ff.source}`),
       n ? h('span', { class: 'faint' }, ` · ${n} preset yok`) : null),
     iconBtn('gear', 'FFmpeg ayrıntıları', ffDetails));
 }
@@ -320,7 +327,7 @@ function renderNav() {
   const running = (where) => S.jobs.filter((j) => (where === 'local' ? j.where === 'local' : j.where !== 'local') && ['running', 'starting'].includes(j.status)).length;
   const lr = running('local'), rr = running('remote');
   fill($('#navLocal'), icon('monitor'), h('span', { class: 'grow' }, h('span', { class: 't' }, 'Bu bilgisayar'),
-    h('span', { class: 's' }, S.ff ? `FFmpeg ${S.ff.version.replace(/-cemalcloud$/, '')}` : S.ff === null ? 'FFmpeg yok' : '…')),
+    h('span', { class: 's' }, S.ff ? `FFmpeg ${shortVersion(S.ff.version)}` : S.ff === null ? 'FFmpeg yok' : '…')),
     lr ? badge(String(lr), 'ok') : null);
   const inst = Object.values(S.inst).filter((x) => x.running).length;
   fill($('#navServers'), icon('server'), h('span', { class: 'grow' }, h('span', { class: 't' }, 'Sunucular'),
@@ -822,7 +829,7 @@ function overviewCard(s, si) {
     body = [h('div', { class: 'tiles' },
       tile('Sistem', i.os || '?'), tile('İşlemci', `${i.cpus} çekirdek · ${i.arch}`), tile('Bellek', `${i.memGB} GB`),
       tile('Boş disk', `${i.freeDiskGB} GB`, '/var/tmp'), tile('sudo', sudo, i.sudo && i.sudo.error),
-      tile('FFmpeg', i.ffmpeg ? i.ffmpeg.replace(/-cemalcloud$/, '') : 'kurulu değil', null, !!i.ffmpeg)),
+      tile('FFmpeg', i.ffmpeg ? shortVersion(i.ffmpeg) : 'kurulu değil', null, !!i.ffmpeg)),
     i.sudo && i.sudo.error ? h('div', { class: 'note warn', style: { marginTop: '10px' } }, icon('alert'), h('div', null, i.sudo.error)) : null,
     i.hostKey ? h('div', { class: 'hostkey' }, icon('shield'), 'Sunucu kimliği ', h('span', { class: 'mono selectable' }, i.hostKey),
       i.newHostKey ? h('span', null, ' · ilk bağlantıda kaydedildi') : null) : null];
@@ -855,7 +862,7 @@ function installCard(s, i) {
   const st = inst(s.id);
   const children = [];
   const head = h('div', { class: 'card-head' }, h('h2', null, 'ffmpeg-broadcast'),
-    st.running ? badge('kuruluyor', 'info') : i.ffmpeg ? badge(`${i.ffmpeg.replace(/-cemalcloud$/, '')} · ${i.presets} preset`, 'ok') : badge('kurulu değil'),
+    st.running ? badge('kuruluyor', 'info') : i.ffmpeg ? badge(`${shortVersion(i.ffmpeg)} · ${i.presets} preset`, 'ok') : badge('kurulu değil'),
     h('span', { class: 'spacer' }));
   children.push(head);
   if (!i.apt) children.push(h('div', { class: 'note warn' }, icon('alert'), h('div', null, `Kurulum Ubuntu / Debian (apt) bekliyor; bu sunucu: ${i.os}. Sunucuda zaten /opt/ffmpeg-broadcast varsa işler yine çalışır.`)));
