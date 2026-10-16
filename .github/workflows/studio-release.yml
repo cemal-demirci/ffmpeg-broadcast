@@ -27,19 +27,23 @@ jobs:
     defaults:
       run:
         working-directory: studio
+        shell: bash
+    env:
+      BCAST_NOTICES: ${{ github.workspace }}/notices.txt
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with: { node-version: 22 }
       - run: npm ci --omit=optional
       - run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
-        shell: bash
       - run: npm run ${{ matrix.dist }}
       - name: Smoke test the packaged app
         env:
           BCAST_E2E_APP: ${{ github.workspace }}/studio/${{ matrix.exe }}
           BCAST_E2E_DOWNLOAD: '1'
         run: npm run test:e2e
+      - if: always()
+        run: cat "$BCAST_NOTICES" 2>/dev/null || true
       - uses: actions/upload-artifact@v6
         with:
           name: release-${{ matrix.name }}

@@ -15,6 +15,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync, spawn } = require('child_process');
 const bc = require('../src/core/bcast');
+const notice = require('./notice');
 
 const REPO = path.resolve(__dirname, '..', '..');
 const PRESETS = path.join(REPO, 'presets');
@@ -122,9 +123,7 @@ test('JS engine builds the same ffmpeg argv as bash bcast', { timeout: 15 * 60 *
 
   console.log(`equivalence: ${same} identical commands, ${sameErrors} identical refusals, ${failures.length} differences ` +
               `(${presets.length} presets x ${Object.keys(SOURCES).length} sources x ${OPTION_SETS.length} option sets)`);
-  if (process.env.GITHUB_ACTIONS) {
-    console.log(`::notice title=bcast engine equivalence::${same} identical commands and ${sameErrors} identical refusals across ${cases.length} cases (${presets.length} presets x ${Object.keys(SOURCES).length} sources x ${OPTION_SETS.length} option sets)`);
-  }
+  notice('bcast engine equivalence', `${same} identical commands and ${sameErrors} identical refusals, ${failures.length} differences, across ${cases.length} cases (${presets.length} presets x ${Object.keys(SOURCES).length} sources x ${OPTION_SETS.length} option sets)`);
   assert.strictEqual(failures.length, 0, failures.slice(0, 10).join('\n'));
   assert.ok(same > cases.length / 2, 'most cases should build a command');
 });

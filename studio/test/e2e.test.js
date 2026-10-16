@@ -17,6 +17,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { _electron } = require('playwright-core');
+const notice = require('./notice');
 
 const env = process.env;
 const APP_DIR = path.resolve(__dirname, '..');
@@ -68,7 +69,7 @@ test.after(async () => {
   if (app) await app.close();
   const summary = `${platform}: ${notes.join('; ')}`;
   console.log(`e2e: ${summary}`);
-  if (env.GITHUB_ACTIONS && notes.length) console.log(`::notice title=bcast Studio app (${platform})::${notes.join('; ')}`);
+  if (notes.length) notice(`bcast Studio app (${platform})`, notes.join('; '));
 });
 
 test('FFmpeg is found, or downloaded from the app', { timeout: 15 * 60 * 1000 }, async () => {

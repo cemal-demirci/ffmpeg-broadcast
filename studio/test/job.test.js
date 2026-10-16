@@ -9,10 +9,12 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const job = require('../src/core/job');
 const ff = require('../src/core/ffmpeg');
+const notice = require('./notice');
 
 const PRESETS = path.resolve(__dirname, '..', '..', 'presets');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bcast-job-'));
 let FF;
+const notes = [];
 
 test.before(async () => {
   FF = await ff.locate({});
@@ -34,6 +36,7 @@ test('a preset runs with progress and the right output', async () => {
   assert.ok(seen.some((p) => p.done && p.pct === 100), 'progress ends at 100');
   const info = execFileSync(FF.ffprobe, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', out]).toString().trim();
   assert.strictEqual(info, '960,540');
+  notes.push(`proxy-h264-540p: ${seen.length} progress updates, 960x540`);
 });
 
 test('an existing output is not overwritten unless asked', async () => {
@@ -41,10 +44,12 @@ test('an existing output is not overwritten unless asked', async () => {
   fs.writeFileSync(out, 'keep me');
   await assert.rejects(job.start({ ...base(), preset: 'proxy-h264-540p', output: out }).done, /zaten var/);
   assert.strictEqual(fs.readFileSync(out, 'utf8'), 'keep me');
+  notes.push('existing output kept');
 });
 
 test('a preset that does not fit the source is refused with the reason', async () => {
   await assert.rejects(job.start({ ...base(), preset: 'dnxhr-hqx', output: path.join(tmp, 'x.mxf'), srcScan: 'i' }).done, /frame-based/);
+  notes.push('DNxHR HQX refuses interlaced');
 });
 
 test('cancel stops ffmpeg and removes the half-written file', async () => {
@@ -54,4 +59,7 @@ test('cancel stops ffmpeg and removes the half-written file', async () => {
   const r = await h.done;
   assert.ok(r.cancelled, 'marked cancelled');
   assert.ok(!fs.existsSync(out), 'no partial output left');
+  notes.push('cancel leaves no partial file');
 });
+
+test.after(() => { if (notes.length) notice('Local jobs', `FFmpeg ${FF ? FF.version : '?'}: ${notes.join('; ')}`); });

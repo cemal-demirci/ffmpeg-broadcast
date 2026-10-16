@@ -24,6 +24,10 @@ permissions:
 defaults:
   run:
     working-directory: studio
+    shell: bash
+
+env:
+  BCAST_NOTICES: ${{ github.workspace }}/notices.txt
 
 jobs:
   engine:
@@ -37,6 +41,8 @@ jobs:
       - run: npm ci --omit=optional
         env: { ELECTRON_SKIP_BINARY_DOWNLOAD: '1' }
       - run: npm test
+      - if: always()
+        run: cat "$BCAST_NOTICES" 2>/dev/null || true
 
   servers:
     name: App on Linux + a server over SSH
@@ -71,6 +77,8 @@ jobs:
           BCAST_TEST_SSH_USER: bcastci
           BCAST_TEST_SSH_PASS: Ci-Pass-2026
         run: npm run test:remote
+      - if: always()
+        run: cat "$BCAST_NOTICES" 2>/dev/null || true
       - uses: actions/upload-artifact@v6
         if: always()
         with:
@@ -101,6 +109,8 @@ jobs:
           BCAST_E2E_DOWNLOAD: '1'
           BCAST_E2E_SHOTS: ${{ runner.temp }}/shots/${{ matrix.name }}
         run: npm run test:e2e
+      - if: always()
+        run: cat "$BCAST_NOTICES" 2>/dev/null || true
       - uses: actions/upload-artifact@v6
         if: always()
         with:

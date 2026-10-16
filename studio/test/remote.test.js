@@ -10,6 +10,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
 const { Server, RemoteError } = require('../src/core/remote');
+const notice = require('./notice');
 
 const env = process.env;
 const cfg = { host: env.BCAST_TEST_SSH_HOST, port: Number(env.BCAST_TEST_SSH_PORT || 22), username: env.BCAST_TEST_SSH_USER, auth: 'password' };
@@ -98,5 +99,5 @@ test('server: install, then run a preset there', { skip, timeout: 90 * 60 * 1000
 
 test.after(() => {
   if (notes.length) console.log(`remote: ${notes.join('; ')}`);
-  if (env.GITHUB_ACTIONS && notes.length) console.log(`::notice title=Servers over SSH::${notes.join('; ')}`);
+  if (notes.length) notice('Server module over SSH', notes.join('; '));
 });
