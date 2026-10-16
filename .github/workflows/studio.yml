@@ -1,0 +1,144 @@
+name: bcast Studio
+
+# The desktop app, tested the way it is used:
+#   engine   the JS preset engine builds byte-for-byte the same FFmpeg command as bash bcast
+#   servers  the app on Linux: a local queue, then a server added by IP, FFmpeg built
+#            there from the app over SSH (sudo with a password), a job run on it
+#   app      the packaged app on Windows and macOS: FFmpeg downloaded from the app,
+#            a queue of real broadcast files checked with ffprobe, cancel
+on:
+  push:
+    paths: ['studio/**', 'presets/**', 'bcast', 'build-ffmpeg-broadcast.sh', '.github/workflows/studio.yml']
+  pull_request:
+    paths: ['studio/**', 'presets/**', 'bcast', 'build-ffmpeg-broadcast.sh', '.github/workflows/studio.yml']
+  workflow_dispatch:
+    inputs:
+      shots:
+        description: 'Push the screenshots to the screenshots branch'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    working-directory: studio
+
+jobs:
+  engine:
+    name: Engine = bash bcast, local jobs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: 22 }
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - run: npm ci --omit=optional
+        env: { ELECTRON_SKIP_BINARY_DOWNLOAD: '1' }
+      - run: npm test
+
+  servers:
+    name: App on Linux + a server over SSH
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: 22 }
+      - name: SSH server, a user whose sudo needs a password
+        working-directory: .
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq openssh-server ffmpeg xvfb
+          sudo useradd -m -s /bin/bash -G sudo bcastci
+          echo 'bcastci:Ci-Pass-2026' | sudo chpasswd
+          echo 'PasswordAuthentication yes' | sudo tee /etc/ssh/sshd_config.d/00-bcast-ci.conf
+          sudo systemctl restart ssh || sudo systemctl restart sshd
+          test ! -e /opt/ffmpeg-broadcast
+      - run: npm ci --omit=optional
+      - name: Drive the app (local queue; add a server by IP, build FFmpeg there, run a job)
+        env:
+          BCAST_E2E_SHOTS: ${{ runner.temp }}/shots/Linux
+          BCAST_E2E_SSH_HOST: 127.0.0.1
+          BCAST_E2E_SSH_USER: bcastci
+          BCAST_E2E_SSH_PASS: Ci-Pass-2026
+          BCAST_E2E_FULL_INSTALL: '1'
+        run: xvfb-run -a -s "-screen 0 1440x900x24" npm run test:e2e
+      - name: Server module (host key pinning, wrong password, sudo, install, remote job, cancel)
+        env:
+          BCAST_TEST_SSH_HOST: 127.0.0.1
+          BCAST_TEST_SSH_USER: bcastci
+          BCAST_TEST_SSH_PASS: Ci-Pass-2026
+        run: npm run test:remote
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: shots-Linux
+          path: ${{ runner.temp }}/shots
+          if-no-files-found: ignore
+
+  app:
+    name: App on ${{ matrix.name }} (packaged)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-2025, name: Windows, dist: 'dist:win', exe: 'dist/win-unpacked/bcast Studio.exe' }
+          - { os: macos-15, name: macOS, dist: 'dist:mac', exe: 'dist/mac-universal/bcast Studio.app/Contents/MacOS/bcast Studio' }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: 22 }
+      - run: npm ci --omit=optional
+      - name: Package
+        run: npm run ${{ matrix.dist }}
+      - name: Drive the packaged app (FFmpeg downloaded from the app)
+        env:
+          BCAST_E2E_APP: ${{ github.workspace }}/studio/${{ matrix.exe }}
+          BCAST_E2E_DOWNLOAD: '1'
+          BCAST_E2E_SHOTS: ${{ runner.temp }}/shots/${{ matrix.name }}
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: shots-${{ matrix.name }}
+          path: ${{ runner.temp }}/shots
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v6
+        with:
+          name: bcast-Studio-${{ matrix.name }}
+          path: |
+            studio/dist/*.exe
+            studio/dist/*.dmg
+            studio/dist/*.zip
+          if-no-files-found: error
+
+  shots:
+    name: Screenshots
+    needs: [servers, app]
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.shots
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: shots-*
+          path: shots
+          merge-multiple: true
+      - name: Push to the screenshots branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd shots
+          git init -q -b screenshots
+          git config user.name '${{ github.actor }}'
+          git config user.email '${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com'
+          git add .
+          git commit -q -m 'bcast Studio screenshots'
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" screenshots
+          echo "::notice title=Screenshots::$(find . -name '*.png' | wc -l) screenshots pushed to the screenshots branch"

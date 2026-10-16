@@ -1,0 +1,73 @@
+name: bcast Studio release
+
+# Actions tab -> "bcast Studio release" -> Run workflow, type the version.
+# Builds the Windows and macOS apps, drives each packaged app once (FFmpeg
+# downloaded from the app, a real queue checked with ffprobe), then publishes
+# the release studio-v<version> with SHA256SUMS.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without the v, e.g. 1.0.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    strategy:
+      matrix:
+        include:
+          - { os: windows-2025, name: Windows, dist: 'dist:win', exe: 'dist/win-unpacked/bcast Studio.exe' }
+          - { os: macos-15, name: macOS, dist: 'dist:mac', exe: 'dist/mac-universal/bcast Studio.app/Contents/MacOS/bcast Studio' }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: studio
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: 22 }
+      - run: npm ci --omit=optional
+      - run: npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+        shell: bash
+      - run: npm run ${{ matrix.dist }}
+      - name: Smoke test the packaged app
+        env:
+          BCAST_E2E_APP: ${{ github.workspace }}/studio/${{ matrix.exe }}
+          BCAST_E2E_DOWNLOAD: '1'
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v6
+        with:
+          name: release-${{ matrix.name }}
+          path: |
+            studio/dist/*.exe
+            studio/dist/*.dmg
+            studio/dist/*.zip
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: studio-v${{ inputs.version }}
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          cd ..
+          gh release create "$TAG" dist/* --target "$GITHUB_SHA" \
+            --title "bcast Studio ${{ inputs.version }}" --notes-file .github/studio-release-notes.md
+          echo "::notice title=Release::Published $TAG with $(ls dist | tr '\n' ' ')"

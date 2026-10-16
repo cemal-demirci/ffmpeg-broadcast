@@ -1,0 +1,124 @@
+{
+  "name": "bcast-studio",
+  "productName": "bcast Studio",
+  "version": "1.0.0",
+  "description": "Cemal.cloud bcast Studio: broadcast presets for FFmpeg on your computer and on your servers",
+  "author": "Cemal Demirci (Cemal.cloud)",
+  "license": "SEE LICENSE IN ../LICENSE",
+  "homepage": "https://github.com/cemal-demirci/ffmpeg-broadcast",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cemal-demirci/ffmpeg-broadcast.git",
+    "directory": "studio"
+  },
+  "private": true,
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/equivalence.test.js test/job.test.js",
+    "test:remote": "node --test test/remote.test.js",
+    "test:e2e": "node --test --test-timeout=7200000 test/e2e.test.js",
+    "dist:win": "electron-builder --win --x64 --publish never",
+    "dist:mac": "electron-builder --mac --universal --publish never"
+  },
+  "dependencies": {
+    "ssh2": "1.17.0"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3",
+    "playwright-core": "1.63.0"
+  },
+  "build": {
+    "appId": "cloud.cemal.bcast-studio",
+    "productName": "bcast Studio",
+    "copyright": "Copyright (C) 2026 Cemal Demirci (Cemal.cloud)",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "!node_modules/ssh2/lib/protocol/crypto/build/**",
+      "!node_modules/cpu-features/**",
+      "!node_modules/nan/**"
+    ],
+    "extraResources": [
+      {
+        "from": "../presets",
+        "to": "bcast/presets"
+      },
+      {
+        "from": "../bcast",
+        "to": "bcast/bcast"
+      },
+      {
+        "from": "../build-ffmpeg-broadcast.sh",
+        "to": "bcast/build-ffmpeg-broadcast.sh"
+      },
+      {
+        "from": "../LICENSE",
+        "to": "LICENSE"
+      },
+      {
+        "from": "../NOTICE",
+        "to": "NOTICE"
+      }
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "bcast-Studio-${version}-windows-setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "bcast-Studio-${version}-windows-portable.exe"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.video",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "artifactName": "bcast-Studio-${version}-macos-${arch}.${ext}",
+      "minimumSystemVersion": "12.0"
+    },
+    "dmg": {
+      "title": "bcast Studio ${version}"
+    },
+    "npmRebuild": false,
+    "publish": null
+  }
+}
