@@ -23,7 +23,19 @@ const notice = require('./notice');
 function step(name, opts, fn) {
   return test(name, opts, async (t) => {
     try { await fn(t); } catch (e) {
-      notice.error(`${platform}: ${name}`, `${e.message}${e.extraLog ? `\n${e.extraLog}` : ''}`.slice(0, 6000));
+      // what the window showed when it failed: the open dialog, or the current view
+      let screen = '';
+      try {
+        screen = await win.evaluate(() => {
+          const m = document.querySelector('.modal');
+          const v = document.querySelector('.view:not(.hidden)');
+          const toasts = [...document.querySelectorAll('.toast')].map((x) => x.innerText).join(' | ');
+          return `${m ? `dialog: ${m.innerText}` : `view: ${v ? v.innerText : ''}`}${toasts ? `\ntoasts: ${toasts}` : ''}`;
+        });
+        if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await win.screenshot({ path: path.join(SHOTS, `failed-${name.slice(0, 40).replace(/[^a-z0-9]+/gi, '-')}.png`) }); }
+      } catch { /* the window may be gone */ }
+      const where = (e.stack || '').split('\n').find((l) => l.includes('e2e.test.js')) || '';
+      notice.error(`${platform}: ${name}`, `${e.message} ${where.trim()}${e.extraLog ? `\n${e.extraLog}` : ''}\n${screen.replace(/\s+/g, ' ').slice(0, 2500)}`.slice(0, 6000));
       throw e;
     }
   });
