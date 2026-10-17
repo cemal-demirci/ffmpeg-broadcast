@@ -5,6 +5,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>bcast Studio</title>
+  <link rel="stylesheet" href="fonts.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -12,47 +13,46 @@
     <header class="titlebar">
       <div class="brand">
         <span class="mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><rect width="24" height="24" rx="6.5" fill="currentColor"/><g fill="none" stroke="#0B2418" stroke-width="2.3" stroke-linecap="round"><path d="M7.6 10.4a6 6 0 0 1 6 6"/><path d="M7.6 5.6a10.8 10.8 0 0 1 10.8 10.8"/></g><circle cx="8.2" cy="15.8" r="2.1" fill="#0B2418"/></svg>
+          <svg viewBox="0 0 24 24"><rect width="24" height="24" rx="5" fill="#3DDC97"/><rect x="3.4" y="8" width="10.2" height="3.4" rx=".9" fill="#0B2418"/><rect x="8.6" y="13" width="12" height="3.4" rx=".9" fill="#0B2418"/><rect x="14.1" y="6.6" width="1.8" height="13" rx=".9" fill="#FFFFFF"/><path d="M12.4 4.4h5.2L15 7.4z" fill="#FFFFFF"/></svg>
         </span>
-        <span class="brand-name">bcast <b>Studio</b></span>
-        <span class="brand-by">Cemal.cloud</span>
+        <span class="brand-name">bcast Studio</span>
       </div>
+      <nav class="modes" role="tablist" aria-label="Çalışma yeri">
+        <button class="mode active" data-view="local" id="navLocal" role="tab" type="button"></button>
+        <button class="mode" data-view="servers" id="navServers" role="tab" type="button"></button>
+      </nav>
       <div class="titlebar-fill"></div>
       <div id="ffPill" class="ff-pill no-drag"></div>
     </header>
 
-    <div class="body">
-      <nav class="sidebar" id="sidebar">
-        <button class="nav-item active" data-view="local" id="navLocal"></button>
-        <button class="nav-item" data-view="servers" id="navServers"></button>
-        <div class="nav-activity" id="navActivity"></div>
-        <div class="sidebar-foot" id="sidebarFoot"></div>
-      </nav>
-
-      <main class="main">
-        <section class="view" id="view-local">
-          <div id="ffBanner"></div>
-          <div class="local-grid">
-            <div class="col">
-              <div class="card" id="sourcesCard"></div>
-              <div class="card" id="optionsCard"></div>
-              <div class="card" id="jobsCard"></div>
-            </div>
-            <aside class="col side">
-              <div class="card presets-card" id="presetsCard"></div>
-              <div class="actionbar" id="actionBar"></div>
-            </aside>
+    <main class="main">
+      <section class="view" id="view-local">
+        <div id="ffBanner"></div>
+        <div class="local-grid">
+          <div class="col">
+            <div class="card" id="sourcesCard"></div>
+            <div class="card" id="optionsCard"></div>
+            <div class="card" id="jobsCard"></div>
           </div>
-        </section>
+          <aside class="col side">
+            <div class="card presets-card" id="presetsCard"></div>
+            <div class="actionbar" id="actionBar"></div>
+          </aside>
+        </div>
+      </section>
 
-        <section class="view hidden" id="view-servers">
-          <div class="servers-grid">
-            <div class="server-list" id="serverList"></div>
-            <div class="server-detail" id="serverDetail"></div>
-          </div>
-        </section>
-      </main>
-    </div>
+      <section class="view hidden" id="view-servers">
+        <div class="servers-grid">
+          <div class="card server-list" id="serverList"></div>
+          <div class="server-detail" id="serverDetail"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="statusbar">
+      <div class="sb-left" id="statusLeft"></div>
+      <div class="sb-right" id="statusRight"></div>
+    </footer>
   </div>
 
   <div id="modalRoot"></div>

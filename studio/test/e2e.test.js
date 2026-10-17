@@ -125,8 +125,9 @@ step('sources are read and every preset says whether it fits', {}, async () => {
   await win.click('[data-preset="xdcam-hd422-1080i25"]');
   await win.waitForTimeout(400);
   const meta = await win.evaluate(() => [...document.querySelectorAll('#sourcesCard .src')].map((s) => s.innerText.replace(/\s+/g, ' ')));
-  assert.match(meta[0], /1920×1080i25 · TFF/, 'interlaced source described');
-  assert.match(meta[1], /1920×1080p50/, 'progressive source described');
+  assert.match(meta[0], /1080i25/, 'interlaced source labelled 1080i25');
+  assert.match(meta[0], /TFF/, 'field order shown');
+  assert.match(meta[1], /1080p50/, 'progressive source labelled 1080p50');
   assert.match(meta[0], /uygun/); assert.match(meta[1], /uygun/);
   assert.match(meta[2], /uymuyor/, 'audio-only source does not fit a video preset');
   await win.click('[data-preset="dnxhr-hqx"]');

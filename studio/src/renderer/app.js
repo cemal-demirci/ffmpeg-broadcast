@@ -61,7 +61,7 @@ const ICON = {
   signal: '<path d="M5 18.5a1.5 1.5 0 1 0 0-.01"/><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/>',
 };
 const icon = (name, cls = '') => h('span', { class: `ic ${cls}`, 'aria-hidden': 'true',
-  html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICON[name]}</svg>` });
+  html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICON[name]}</svg>` });
 
 function btn(label, onClick, { cls = '', ic, title, disabled, id } = {}) {
   return h('button', { class: `btn ${cls}`, onclick: onClick, title, disabled, id, type: 'button' }, ic ? icon(ic) : null, label);
@@ -71,8 +71,8 @@ const iconBtn = (ic, title, onClick, cls = 'ghost') => h('button', { class: `btn
 function toggle(title, sub, checked, onChange, id) {
   const input = h('input', { type: 'checkbox', role: 'switch', checked, id, 'aria-label': title, onchange: (e) => onChange(e.target.checked) });
   return h('label', { class: 'switch-row' },
-    h('span', { class: 'txt' }, h('span', { class: 't' }, title), sub ? h('span', { class: 's' }, sub) : null),
-    h('span', { class: 'switch' }, input, h('span', { class: 'track' }), h('span', { class: 'knob' })));
+    h('span', { class: 'switch' }, input, h('span', { class: 'track' }), h('span', { class: 'knob' })),
+    h('span', { class: 'txt' }, h('span', { class: 't' }, title), sub ? h('span', { class: 's' }, sub) : null));
 }
 
 function seg(options, value, onChange, cls = '') {
@@ -81,7 +81,13 @@ function seg(options, value, onChange, cls = '') {
       onclick: () => onChange(v) }, label)));
 }
 
-const badge = (text, cls = '', title) => h('span', { class: `badge ${cls}`, title }, text);
+const LAMP = { ok: 'green', warn: 'amber', info: 'amber', err: 'red', run: 'red' };
+/** a status lamp: green ready, red encoding / failed, amber selected or attention, off */
+const lamp = (color, title) => h('i', { class: `lamp${color ? ` ${color}` : ''}`, title, 'aria-hidden': title ? null : 'true' });
+/** a short status word with its lamp */
+const badge = (text, cls = '', title) => h('span', { class: `badge ${cls}`, title }, lamp(LAMP[cls]), text);
+const cardHead = (title, sub, actions, id) => h('div', { class: 'card-head', id }, h('h2', null, title), sub ? h('span', { class: 'sub' }, sub) : null, h('span', { class: 'spacer' }), actions);
+const note = (kind, ...body) => h('div', { class: `note${kind ? ` ${kind}` : ''}` }, h('div', { class: 'grow' }, body));
 
 // ---------------------------------------------------------------------------
 // format
@@ -95,8 +101,8 @@ function fmtDur(s) {
 function fmtSize(b) {
   if (!(b >= 0)) return '';
   if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
-  if (b < 1024 ** 3) return `${(b / 1024 ** 2).toFixed(1)} MB`;
-  return `${(b / 1024 ** 3).toFixed(2)} GB`;
+  if (b < 1024 ** 3) return `${dec(b / 1024 ** 2)} MB`;
+  return `${dec(b / 1024 ** 3, 2)} GB`;
 }
 /** n9.0.2-cemalcloud -> n9.0.2, 9.0.2-https://… -> 9.0.2, N-127564-g3c92f003c7-20261015 -> master 2026-10-15 */
 function shortVersion(v) {
@@ -110,20 +116,35 @@ const plural = (n, word) => `${n} ${word}`;
 const CAT = { contribution: 'Katkı / playout', post: 'Kurgu', distribution: 'Yayın', ott: 'OTT / web', audio: 'Ses' };
 const CAT_SHORT = { contribution: 'Katkı', post: 'Kurgu', distribution: 'Yayın', ott: 'OTT', audio: 'Ses' };
 const TC_RE = /^\d{2}:\d{2}:\d{2}[:;]\d{2}$/;
-/** 1920×1080i25 · TFF · 1 ses akışı, 2 kanal */
-function describeTr(src) {
-  if (!src) return '';
-  const parts = [];
-  if (src.width) {
-    const il = /^(tt|bb|tb|bt)$/.test(src.fieldOrder || '');
-    const [n, d] = String(src.rate || '').split('/').map(Number);
-    const fps = d ? n / d : n;
-    parts.push(`${src.width}×${src.height}${il ? 'i' : 'p'}${fps ? +fps.toFixed(2) : ''}`);
-    if (il) parts.push(/^t/.test(src.fieldOrder) ? 'TFF' : 'BFF');
-  } else parts.push('yalnız ses');
-  parts.push(src.audioStreams ? `${src.audioStreams} ses akışı, ${src.audioChannels} kanal` : 'ses yok');
-  return parts.join(' · ');
+const pad2 = (n) => String(n).padStart(2, '0');
+/** HH:MM:SS, the way a broadcast clock shows it */
+function fmtTC(s) {
+  if (!(s >= 0) || !Number.isFinite(s)) return '--:--:--';
+  s = Math.round(s);
+  return `${pad2(Math.floor(s / 3600))}:${pad2(Math.floor((s % 3600) / 60))}:${pad2(s % 60)}`;
 }
+const dec = (n, d = 1) => Number(n).toFixed(d).replace('.', ',');
+function scanOf(src) {
+  const [n, d] = String(src.rate || '').split('/').map(Number);
+  return { il: /^(tt|bb|tb|bt)$/.test(src.fieldOrder || ''), tff: /^t/.test(src.fieldOrder || ''), fps: d ? n / d : n };
+}
+/** what a multiviewer label would say: 1080i25, 1080p50, ses */
+function umdLabel(src) {
+  if (!src) return '…';
+  if (!src.width) return 'ses';
+  const { il, fps } = scanOf(src);
+  return `${src.height}${il ? 'i' : 'p'}${fps ? +fps.toFixed(2) : ''}`;
+}
+function specParts(src) {
+  if (!src) return [];
+  const out = [];
+  if (src.width) { const { il, tff } = scanOf(src); out.push(`${src.width}×${src.height}`, il ? (tff ? 'TFF' : 'BFF') : 'progressive'); }
+  else out.push('görüntü yok');
+  out.push(src.audioStreams ? `${src.audioStreams} ses akışı, ${src.audioChannels} kanal` : 'ses yok');
+  return out;
+}
+const srcText = (src) => (src ? [umdLabel(src), ...specParts(src)].join(', ') : '');
+const fmtCode = (p) => (p.ladder || p.ext === '/' ? 'HLS' : String(p.ext || '').toUpperCase());
 const extLabel = (p) => (p.ladder || p.ext === '/' ? 'HLS' : `.${p.ext}`);
 
 let seq = 0;
@@ -164,7 +185,7 @@ function saveSettings() {
 // toasts, modals
 // ---------------------------------------------------------------------------
 function toast(kind, text, ms = 5000) {
-  const t = h('div', { class: `toast ${kind}` }, icon(kind === 'ok' ? 'check' : kind === 'err' ? 'alert' : 'info'), h('div', null, text));
+  const t = h('div', { class: `toast ${kind}` }, h('div', null, text));
   $('#toasts').append(t);
   setTimeout(() => t.remove(), ms);
 }
@@ -190,7 +211,7 @@ function confirmBox(title, text, okLabel, danger) {
   return new Promise((resolve) => {
     let done = false;
     const m = modal({
-      title, body: h('p', { class: 'muted' }, text),
+      title, body: h('p', { class: 'dim', style: { margin: '0', maxWidth: '64ch' } }, text),
       onClose: () => { if (!done) resolve(false); },
       foot: (close) => [h('span', { class: 'left' }),
         btn('Vazgeç', () => close(), { cls: 'ghost' }),
@@ -238,18 +259,18 @@ function ffDetails() {
     title: 'FFmpeg',
     body: h('div', { class: 'col', style: { gap: '12px' } },
       h('div', { class: 'form-grid' },
-        h('div', { class: 'field' }, h('span', { class: 'lbl' }, 'Sürüm'), h('div', { class: 'mono selectable' }, f.version)),
+        h('div', { class: 'field' }, h('span', { class: 'lbl' }, 'Sürüm'), h('div', { class: 'num selectable' }, f.version)),
         h('div', { class: 'field' }, h('span', { class: 'lbl' }, 'Kaynak'), h('div', null, f.source)),
-        h('div', { class: 'field full' }, h('span', { class: 'lbl' }, 'ffmpeg'), h('div', { class: 'mono selectable ellipsis', title: f.path }, f.path)),
-        h('div', { class: 'field full' }, h('span', { class: 'lbl' }, 'ffprobe'), h('div', { class: 'mono selectable ellipsis', title: f.ffprobe }, f.ffprobe))),
+        h('div', { class: 'field full' }, h('span', { class: 'lbl' }, 'ffmpeg'), h('div', { class: 'code selectable ellipsis', title: f.path }, f.path)),
+        h('div', { class: 'field full' }, h('span', { class: 'lbl' }, 'ffprobe'), h('div', { class: 'code selectable ellipsis', title: f.ffprobe }, f.ffprobe))),
       missing.length
-        ? h('div', { class: 'note warn' }, icon('alert'), h('div', null, `Bu FFmpeg ${missing.length} preseti çalıştıramaz: `,
-            missing.map(([n, m]) => `${n} (${m.join(', ')})`).join('; '), '. ffmpeg-broadcast build’i ya da indirilen build hepsini destekler.'))
-        : h('div', { class: 'note ok' }, icon('check'), h('div', null, `${S.presets.length} presetin hepsi bu FFmpeg ile çalışır.`))),
+        ? note('warn', `Bu FFmpeg ${missing.length} preseti çalıştıramaz: `,
+            missing.map(([n, m]) => `${n} (${m.join(', ')})`).join('; '), '. ffmpeg-broadcast build’i ya da indirilen build hepsini destekler.')
+        : note('ok', `${S.presets.length} presetin hepsi bu FFmpeg ile çalışır.`)),
     foot: (close) => [
       h('span', { class: 'left' }, btn('Yeniden tara', () => { close(); refreshFfmpeg(true); }, { cls: 'ghost sm', ic: 'refresh' })),
-      btn('Başka FFmpeg seç', () => { close(); chooseFf(); }, { cls: 'sm', ic: 'folder' }),
-      S.info.canDownloadFfmpeg ? btn('Güncel build indir', () => { close(); downloadFf(); }, { cls: 'sm', ic: 'download' }) : null,
+      btn('Başka FFmpeg seç', () => { close(); chooseFf(); }, { cls: 'sm' }),
+      S.info.canDownloadFfmpeg ? btn('Güncel build indir', () => { close(); downloadFf(); }, { cls: 'sm primary' }) : null,
     ],
   });
 }
@@ -257,26 +278,27 @@ function ffDetails() {
 function renderFf() {
   const el = $('#ffPill');
   el.className = 'ff-pill no-drag';
+  const gap = h('span', { style: { width: '6px' } });
   if (S.ffDl) {
     const pct = S.ffDl.pct;
-    fill(el, h('span', { class: 'dot' }),
-      h('span', { class: 'label', id: 'ffDlLabel' }, S.ffDl.step === 'unpack' ? 'FFmpeg açılıyor…' : `FFmpeg indiriliyor${pct != null ? ` %${Math.floor(pct)}` : '…'}`),
-      h('span', { class: 'mini-bar' }, h('i', { id: 'ffDlBar', style: { width: `${pct || 0}%` } })), h('span', { style: { width: '6px' } }));
+    fill(el, lamp('amber'),
+      h('span', { class: 'what', id: 'ffDlLabel' }, S.ffDl.step === 'unpack' ? 'FFmpeg açılıyor' : `FFmpeg indiriliyor${pct != null ? ` %${Math.floor(pct)}` : ''}`),
+      h('span', { class: 'bar mini' }, h('i', { id: 'ffDlBar', style: { width: `${pct || 0}%` } })), gap);
     return;
   }
-  if (S.ff === undefined) { fill(el, h('span', { class: 'dot' }), h('span', { class: 'label muted' }, 'FFmpeg aranıyor…'), h('span', { style: { width: '6px' } })); return; }
+  if (S.ff === undefined) { fill(el, lamp(), h('span', { class: 'what' }, 'FFmpeg aranıyor'), gap); return; }
   if (!S.ff) {
     el.classList.add('missing');
-    fill(el, h('span', { class: 'dot' }), h('span', { class: 'label' }, 'FFmpeg yok'),
+    fill(el, lamp('amber'), h('span', { class: 'what' }, 'FFmpeg yok'),
       S.info.canDownloadFfmpeg ? btn('İndir', downloadFf, { cls: 'primary sm' }) : null,
       btn('Seç', chooseFf, { cls: 'ghost sm' }));
     return;
   }
   el.classList.add('ok');
   const n = Object.values(S.ff.missing || {}).filter((m) => m.length).length;
-  fill(el, h('span', { class: 'dot' }),
-    h('span', { class: 'label', title: `${S.ff.version}\n${S.ff.path}` }, 'FFmpeg ', h('b', null, shortVersion(S.ff.version)), h('span', { class: 'faint' }, ` · ${S.ff.source}`),
-      n ? h('span', { class: 'faint' }, ` · ${n} preset yok`) : null),
+  fill(el, lamp(n ? 'amber' : 'green'), h('span', { class: 'what' }, 'FFmpeg'),
+    h('span', { class: 'ver', title: `${S.ff.version}\n${S.ff.path}` }, shortVersion(S.ff.version)),
+    h('span', { class: 'src' }, n ? `${S.ff.source}, ${n} preset yok` : S.ff.source),
     iconBtn('gear', 'FFmpeg ayrıntıları', ffDetails));
 }
 
@@ -284,19 +306,19 @@ function renderBanner() {
   const el = $('#ffBanner');
   if (S.ff !== null && !S.ffDl) { el.replaceChildren(); return; }
   if (S.ffDl) {
-    fill(el, h('div', { class: 'banner' }, icon('download', 'xl'),
+    fill(el, h('div', { class: 'banner' },
       h('div', { class: 'grow' }, h('h3', null, 'FFmpeg indiriliyor'),
-        h('p', null, 'x264, x265 ve SRT içeren bir build. Bittiğinde presetler hemen açılır.'),
-        h('div', { class: 'bar', style: { marginTop: '10px' } }, h('i', { id: 'ffDlBar2', style: { width: `${S.ffDl.pct || 0}%` } })))));
+        h('p', null, 'x264, x265 ve SRT içeren bir build. Bittiğinde presetler hemen kullanılabilir.'),
+        h('div', { class: 'bar', style: { marginTop: '10px', maxWidth: '520px' } }, h('i', { id: 'ffDlBar2', style: { width: `${S.ffDl.pct || 0}%` } })))));
     return;
   }
-  fill(el, h('div', { class: 'banner' }, icon('alert', 'xl'),
+  fill(el, h('div', { class: 'banner' },
     h('div', { class: 'grow' }, h('h3', null, 'Bu bilgisayarda FFmpeg bulunamadı'),
       h('p', null, 'bcast Studio FFmpeg’i içinde taşımaz. Tek tıkla x264, x265 ve SRT içeren güncel bir build indirir ',
-        h('span', { class: 'faint' }, process_label()), '; kurulu bir FFmpeg’iniz varsa onu da seçebilirsiniz.')),
+        h('span', { class: 'faint' }, process_label()), '. Kurulu bir FFmpeg’iniz varsa onu da seçebilirsiniz.')),
     h('div', { class: 'actions' },
-      S.info.canDownloadFfmpeg ? btn('FFmpeg’i indir', downloadFf, { cls: 'primary', ic: 'download' }) : null,
-      btn('Bilgisayardakini seç', chooseFf, { ic: 'folder' }))));
+      S.info.canDownloadFfmpeg ? btn('FFmpeg’i indir', downloadFf, { cls: 'primary' }) : null,
+      btn('Bilgisayardakini seç', chooseFf))));
 }
 function process_label() {
   return S.info.platform === 'darwin' ? '(Martin Riedl build sunucusu, GPL)' : '(BtbN FFmpeg-Builds, GPL)';
@@ -308,7 +330,7 @@ api.on('ffmpeg', (ev) => {
   if (ev.total) S.ffDl.pct = (ev.received / ev.total) * 100;
   const pct = S.ffDl.pct || 0;
   const label = $('#ffDlLabel');
-  if (label) label.textContent = ev.step === 'unpack' ? 'FFmpeg açılıyor…' : `FFmpeg indiriliyor %${Math.floor(pct)}${ev.total ? '' : ` (${fmtSize(ev.received)})`}`;
+  if (label) label.textContent = ev.step === 'unpack' ? 'FFmpeg açılıyor' : `FFmpeg indiriliyor %${Math.floor(pct)}${ev.total ? '' : ` (${fmtSize(ev.received)})`}`;
   for (const id of ['#ffDlBar', '#ffDlBar2']) { const b = $(id); if (b) b.style.width = `${pct}%`; }
 });
 
@@ -317,46 +339,48 @@ api.on('ffmpeg', (ev) => {
 // ---------------------------------------------------------------------------
 function setView(v) {
   S.view = v;
-  for (const b of document.querySelectorAll('.nav-item')) b.classList.toggle('active', b.dataset.view === v);
+  for (const b of document.querySelectorAll('.mode')) { b.classList.toggle('active', b.dataset.view === v); b.setAttribute('aria-selected', String(b.dataset.view === v)); }
   $('#view-local').classList.toggle('hidden', v !== 'local');
   $('#view-servers').classList.toggle('hidden', v !== 'servers');
   if (v === 'servers') { renderServers(); if (S.sel && !S.sinfo[S.sel]) loadInfo(S.sel); }
 }
 
 function renderNav() {
-  const running = (where) => S.jobs.filter((j) => (where === 'local' ? j.where === 'local' : j.where !== 'local') && ['running', 'starting'].includes(j.status)).length;
-  const lr = running('local'), rr = running('remote');
-  fill($('#navLocal'), icon('monitor'), h('span', { class: 'grow' }, h('span', { class: 't' }, 'Bu bilgisayar'),
-    h('span', { class: 's' }, S.ff ? `FFmpeg ${shortVersion(S.ff.version)}` : S.ff === null ? 'FFmpeg yok' : '…')),
-    lr ? badge(String(lr), 'ok') : null);
-  const inst = Object.values(S.inst).filter((x) => x.running).length;
-  fill($('#navServers'), icon('server'), h('span', { class: 'grow' }, h('span', { class: 't' }, 'Sunucular'),
-    h('span', { class: 's' }, S.servers.length ? plural(S.servers.length, 'sunucu') : 'IP ile ekleyin')),
-    rr || inst ? badge(String(rr + inst), 'info') : null);
-
-  const act = S.jobs.filter((j) => ['running', 'starting'].includes(j.status));
+  const active = S.jobs.filter((j) => ['running', 'starting'].includes(j.status));
+  const lr = active.filter((j) => j.where === 'local').length;
+  const rr = active.length - lr;
   const instRows = Object.entries(S.inst).filter(([, x]) => x.running);
-  const el = $('#navActivity');
-  if (!act.length && !instRows.length) { el.replaceChildren(); return; }
-  fill(el, h('div', { class: 'head' }, 'Şu an'),
-    act.map((j) => h('div', { class: 'act', dataset: { act: j.id }, onclick: () => setView(j.where === 'local' ? 'local' : 'servers') },
-      h('div', { class: 'n ellipsis' }, j.name), h('div', { class: 'faint', style: { fontSize: '11px' } },
-        `${j.preset}${j.where !== 'local' ? ` · ${serverName(j.where)}` : ''}`),
-      h('div', { class: `bar${j.pct == null ? ' indeterminate' : ''}` }, h('i', { style: { width: `${j.pct || 0}%` } })))),
-    instRows.map(([id]) => h('div', { class: 'act', onclick: () => { S.sel = id; setView('servers'); } },
-      h('div', { class: 'n ellipsis' }, `Kurulum: ${serverName(id)}`),
-      h('div', { class: 'bar indeterminate' }, h('i')))));
+  fill($('#navLocal'), lamp(lr ? 'red' : null), 'Bu bilgisayar');
+  fill($('#navServers'), lamp(rr ? 'red' : instRows.length ? 'amber' : null), 'Sunucular',
+    S.servers.length ? h('span', { class: 'faint' }, String(S.servers.length)) : null);
+
+  const el = $('#statusLeft');
+  if (!active.length && !instRows.length) {
+    const queued = S.jobs.filter((j) => j.status === 'queued').length;
+    fill(el, h('span', { class: 'act' }, lamp(S.ff ? 'green' : S.ff === null ? 'amber' : null),
+      S.ff === null ? 'FFmpeg bekleniyor' : queued ? `${queued} iş sırada` : 'Hazır'));
+    return;
+  }
+  fill(el,
+    active.map((j) => h('span', { class: 'act', dataset: { act: j.id }, title: `${j.name}, ${j.preset}`,
+      onclick: () => setView(j.where === 'local' ? 'local' : 'servers') },
+    lamp('red'), h('span', { class: 'n' }, j.name),
+    h('span', { class: 'dim' }, j.where === 'local' ? j.preset : `${j.preset}, ${serverName(j.where)}`),
+    h('span', { class: `bar${j.pct == null ? ' indeterminate' : ''}` }, h('i', { style: { width: `${j.pct || 0}%` } })),
+    h('span', { class: 'pct' }, j.pct == null ? '' : `%${Math.floor(j.pct)}`))),
+    instRows.map(([id, x]) => h('span', { class: 'act', onclick: () => { S.sel = id; setView('servers'); } },
+      lamp('amber'), h('span', { class: 'n' }, `Kurulum: ${serverName(id)}`),
+      x.compiled ? h('span', { class: 'dim' }, `${x.compiled} dosya derlendi`) : null)));
 }
 
 function renderFoot() {
   const repo = 'https://github.com/cemal-demirci/ffmpeg-broadcast';
-  fill($('#sidebarFoot'),
-    h('div', { class: 'links' },
-      h('button', { class: 'link', onclick: () => api.openExternal(repo) }, 'GitHub'),
-      h('button', { class: 'link', onclick: () => api.openExternal(`${repo}/blob/main/LICENSE`) }, 'Lisans'),
-      h('button', { class: 'link', onclick: () => api.openExternal('mailto:cemaldemirci0034@gmail.com?subject=bcast%20Studio%20ticari%20lisans') }, 'Ticari lisans')),
-    h('div', null, `bcast Studio ${S.info.version} · Cemal.cloud`),
-    h('div', null, 'Ticari olmayan kullanım ücretsiz.'));
+  fill($('#statusRight'),
+    h('span', { class: 'faint' }, 'Ticari olmayan kullanım ücretsiz'),
+    h('button', { class: 'link', type: 'button', onclick: () => api.openExternal('mailto:cemaldemirci0034@gmail.com?subject=bcast%20Studio%20ticari%20lisans') }, 'Ticari lisans'),
+    h('button', { class: 'link', type: 'button', onclick: () => api.openExternal(`${repo}/blob/main/LICENSE`) }, 'Lisans'),
+    h('button', { class: 'link', type: 'button', onclick: () => api.openExternal(repo) }, 'GitHub'),
+    h('span', { class: 'faint' }, `bcast Studio ${S.info.version}`));
 }
 
 // ---------------------------------------------------------------------------
@@ -405,33 +429,32 @@ function renderSources() {
   const n = S.staged.length;
   const drop = h('div', { class: `dropzone${n ? ' compact' : ''}`, id: 'dropzone', role: 'button', tabindex: '0',
     onclick: pickFiles, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickFiles(); } } },
-  icon('upload', 'xl'),
-  n ? h('b', null, 'Daha fazla dosya bırakın ya da tıklayın')
-    : [h('b', null, 'Kaynak dosyaları buraya bırakın'), h('div', null, 'ya da tıklayıp seçin. MXF, MOV, MP4, TS, WAV… FFmpeg’in okuduğu her şey.')]);
+  n ? [icon('plus'), h('b', null, 'Daha fazla dosya bırakın ya da tıklayın')]
+    : [h('b', null, 'Kaynak dosyaları buraya bırakın'), h('span', null, 'ya da tıklayıp seçin: MXF, MOV, MP4, TS, WAV, FFmpeg’in okuduğu her şey')]);
   const fit = S.fit[S.preset];
   const rows = S.staged.map((s) => {
     const audio = s.src && !s.src.width;
-    let state = null, why = null;
+    let state = null, why = null, tally = '';
     if (s.probing) state = badge('okunuyor…');
-    else if (s.error) { state = badge('okunamadı', 'err'); why = h('div', { class: 'why err' }, s.error); }
-    else if (fit && fit.reasons[s.input]) { state = badge('uymuyor', 'warn'); why = h('div', { class: 'why' }, fit.reasons[s.input]); }
-    else if (fit) state = badge('uygun', 'ok');
+    else if (s.error) { state = badge('okunamadı', 'err'); why = h('div', { class: 'why err' }, s.error); tally = 'err'; }
+    else if (fit && fit.reasons[s.input]) { state = badge('uymuyor', 'warn'); why = h('div', { class: 'why' }, fit.reasons[s.input]); tally = 'warn'; }
+    else if (fit) { state = badge('uygun', 'ok'); tally = 'ok'; }
     return h('div', { class: 'src', dataset: { src: s.input } },
-      h('div', { class: `thumb ${audio ? 'audio' : 'video'}` }, icon(audio ? 'wave' : 'film', 'lg')),
+      h('div', { class: `umd ${tally}${audio ? ' audio' : ''}`, title: s.src ? srcText(s.src) : null }, s.probing || s.error ? '…' : umdLabel(s.src)),
       h('div', { class: 'grow' },
         h('div', { class: 'name ellipsis', title: s.input }, s.name),
-        h('div', { class: 'meta ellipsis', title: s.desc || s.input }, s.src ? [describeTr(s.src), s.duration ? ` · ${fmtDur(s.duration)}` : '', s.size ? ` · ${fmtSize(s.size)}` : ''] : s.input),
+        h('div', { class: 'spec' }, s.src
+          ? [specParts(s.src).map((t) => h('span', null, t)), s.duration ? h('span', { class: 'num' }, fmtTC(s.duration)) : null, s.size ? h('span', null, fmtSize(s.size)) : null]
+          : h('span', { class: 'ellipsis' }, s.input)),
         why),
       h('div', { class: 'fit' }, state),
       iconBtn('x', 'Listeden çıkar', () => { S.staged = S.staged.filter((x) => x !== s); renderSources(); refreshFit(); renderActions(); }));
   });
   fill(card,
-    h('div', { class: 'card-head' }, h('h2', null, 'Kaynaklar'), n ? h('span', { class: 'sub' }, plural(n, 'dosya')) : null,
-      h('span', { class: 'spacer' }),
+    cardHead('Kaynaklar', n ? `${n} dosya` : null, [
       btn('Dosya ekle', pickFiles, { cls: 'sm', ic: 'plus' }),
-      n ? btn('Temizle', () => { S.staged = []; S.fit = {}; renderSources(); renderPresets(); renderActions(); }, { cls: 'ghost sm' }) : null),
-    drop,
-    n ? h('div', { class: 'src-list' }, rows) : null);
+      n ? btn('Temizle', () => { S.staged = []; S.fit = {}; renderSources(); renderPresets(); renderActions(); }, { cls: 'ghost sm' }) : null]),
+    h('div', { class: 'bay well' }, drop, rows));
 }
 
 async function pickFiles() {
@@ -441,62 +464,82 @@ async function pickFiles() {
 // ---------------------------------------------------------------------------
 // local: presets and options
 // ---------------------------------------------------------------------------
+function fitSummary(name) {
+  const miss = missingFor(name);
+  if (miss.length) return { lamp: 'red', text: `Bu FFmpeg’de yok: ${miss.join(', ')}`, cls: 'err' };
+  const f = S.fit[name];
+  if (!f || !f.total) return null;
+  const bad = f.total - f.ok;
+  if (!bad) return { lamp: 'green', text: f.total === 1 ? 'Kaynağa uygun' : `${f.total} kaynağın hepsine uygun`, cls: 'ok' };
+  if (!f.ok) return { lamp: 'red', text: f.total === 1 ? 'Bu kaynağa uymuyor' : 'Kaynakların hiçbirine uymuyor', cls: 'warn', reason: Object.values(f.reasons)[0] };
+  return { lamp: 'amber dim', text: `${f.total} kaynaktan ${f.ok} tanesine uygun`, cls: 'warn', reason: Object.values(f.reasons)[0] };
+}
+
+/** second line of a preset key: format code and the first words of the description */
+function keyLine(p) {
+  const first = p.desc.split(',')[0];
+  const code = fmtCode(p);
+  return first.toUpperCase().startsWith(code) ? first : `${code}  ${first}`;
+}
+
 function renderPresets() {
   const card = $('#presetsCard');
   if (!card) return;
   const counts = {};
   for (const p of S.presets) counts[p.category] = (counts[p.category] || 0) + 1;
   const list = S.presets.filter((p) => S.cat === 'all' || p.category === S.cat);
-  const items = list.map((p) => {
+  const keys = list.map((p) => {
+    const sum = fitSummary(p.name);
     const miss = missingFor(p.name);
-    const f = S.fit[p.name];
-    const bad = f && f.total ? f.total - f.ok : 0;
-    const firstReason = f && Object.values(f.reasons)[0];
     return h('button', { class: `preset${p.name === S.preset ? ' on' : ''}${miss.length ? ' off' : ''}`, type: 'button', role: 'radio',
-      'aria-checked': String(p.name === S.preset), dataset: { preset: p.name },
+      'aria-checked': String(p.name === S.preset), dataset: { preset: p.name }, title: `${p.desc}${sum ? `\n${sum.text}` : ''}`,
       onclick: () => { S.preset = p.name; saveSettings(); renderPresets(); renderSources(); renderActions(); } },
-    h('span', { class: 'radio' }),
-    h('span', { class: 'grow' },
-      h('div', { class: 'pn' }, p.name),
-      h('div', { class: 'pd' }, p.desc),
-      miss.length || bad ? h('div', { class: 'pw' },
-        miss.length ? badge(`bu FFmpeg’de yok: ${miss.join(', ')}`, 'err') : null,
-        bad ? (f.ok ? badge(`${f.ok}/${f.total} kaynağa uygun`, '', firstReason) : badge(f.total === 1 ? 'bu kaynağa uymuyor' : 'kaynaklara uymuyor', 'warn', firstReason)) : null) : null),
-    h('span', { class: 'ext' }, badge(extLabel(p), 'mono')));
+    h('span', { class: 'pn' }, p.name),
+    h('span', { class: 'px' }, keyLine(p)),
+    lamp(sum ? sum.lamp : null));
   });
+  const sel = presetByName(S.preset);
+  const sum = sel ? fitSummary(sel.name) : null;
   const prev = $('#presetList');
   const keep = prev ? prev.scrollTop : null;
   fill(card,
-    h('div', { class: 'card-head' }, h('h2', null, 'Preset'), h('span', { class: 'sub' }, String(S.presets.length))),
-    h('div', { class: 'cat-tabs', role: 'tablist' },
+    cardHead('Preset', `${S.presets.length} hazır`),
+    h('div', { class: 'banks', role: 'tablist' },
       [['all', 'Tümü']].concat(S.info.categories.filter((c) => counts[c]).map((c) => [c, CAT_SHORT[c]]))
         .map(([c, label]) => h('button', { type: 'button', class: S.cat === c ? 'on' : '', role: 'tab', 'aria-selected': String(S.cat === c),
           title: c === 'all' ? `${S.presets.length} preset` : `${CAT[c]}: ${counts[c]} preset`,
           onclick: () => { S.cat = c; renderPresets(); } }, label))),
-    h('div', { class: 'preset-list', role: 'radiogroup', id: 'presetList' }, items));
+    h('div', { class: 'preset-list', role: 'radiogroup', id: 'presetList', 'aria-label': 'Preset' }, keys),
+    sel ? h('div', { class: 'readout-box well' },
+      h('div', { class: 'nm' }, sel.name),
+      h('div', { class: 'ds' }, sel.desc),
+      h('div', { class: 'st' },
+        h('span', { class: 'dim' }, `Çıktı ${extLabel(sel)}`),
+        sum ? badge(sum.text, sum.cls, sum.reason) : h('span', { class: 'faint' }, 'Kaynak ekleyince uygunluk burada görünür'))) : null);
   if (keep != null && prev.isConnected === false) $('#presetList').scrollTop = keep;
 }
 
 function renderOptions() {
   const o = S.opts;
-  const tc = h('input', { class: `input mono${o.tc && !TC_RE.test(o.tc) ? ' invalid' : ''}`, id: 'optTc', placeholder: '10:00:00:00', value: o.tc, maxlength: '11',
+  const tc = h('input', { class: `input tc${o.tc && !TC_RE.test(o.tc) ? ' invalid' : ''}`, id: 'optTc', placeholder: '10:00:00:00', value: o.tc, maxlength: '11',
     oninput: (e) => { o.tc = e.target.value.trim(); e.target.classList.toggle('invalid', !!o.tc && !TC_RE.test(o.tc)); saveSettings(); renderActions(); refreshFit(); } });
   const tracks = h('select', { class: 'input', id: 'optTracks', onchange: (e) => { o.tracks = e.target.value; saveSettings(); refreshFit(); } },
     [['', 'Preset’e göre'], ['1', '1'], ['2', '2'], ['4', '4'], ['8', '8'], ['16', '16']].map(([v, l]) => h('option', { value: v, selected: o.tracks === v ? 'selected' : null }, l)));
-  const out = S.outDir
-    ? h('div', { class: 'row', style: { height: '34px' } }, h('button', { class: 'btn sm grow', type: 'button', title: S.outDir, onclick: pickOutDir }, icon('folder'), h('span', { class: 'ellipsis mono' }, base(S.outDir) || S.outDir)),
-      iconBtn('x', 'Kaynağın yanına yaz', () => { S.outDir = ''; saveSettings(); renderOptions(); }))
-    : h('div', { class: 'row', style: { height: '34px' } }, h('button', { class: 'btn sm grow', type: 'button', onclick: pickOutDir, title: 'Çıktılar her kaynağın kendi klasörüne yazılır' }, icon('folder'), 'Kaynağın yanına'));
+  const out = h('div', { class: 'row' },
+    h('div', { class: 'input path ellipsis', style: { lineHeight: '30px', color: S.outDir ? 'var(--silk)' : 'var(--dim)' }, title: S.outDir || 'Çıktılar her kaynağın kendi klasörüne yazılır' },
+      S.outDir || 'Kaynağın yanına'),
+    btn(S.outDir ? 'Değiştir' : 'Klasör seç', pickOutDir, { cls: 'sm' }),
+    S.outDir ? iconBtn('x', 'Kaynağın yanına yaz', () => { S.outDir = ''; saveSettings(); renderOptions(); }) : null);
   fill($('#optionsCard'),
-    h('div', { class: 'card-head' }, h('h2', null, 'Seçenekler'), h('span', { class: 'sub' }, 'alan sırası, frame rate ve ses düzeni kaynağa göre kendiliğinden ayarlanır')),
+    cardHead('Seçenekler', 'alan sırası, frame rate ve ses düzeni kaynağa göre ayarlanır'),
     h('div', { class: 'opt-grid' },
-      h('div', { class: 'field s3' }, toggle('EBU R128 ses seviyesi', '-23 LUFS, -1 dBTP, LRA 7', o.r128, (v) => { o.r128 = v; saveSettings(); }, 'optR128')),
-      h('div', { class: 'field s3' }, toggle('Üzerine yaz', 'Aynı adlı çıktı varsa değiştir', o.overwrite, (v) => { o.overwrite = v; saveSettings(); }, 'optOverwrite')),
-      h('div', { class: 'field s2' }, h('label', { for: 'optTc', title: 'MXF ve MOV çıktılarına yazılır' }, 'Başlangıç timecode'), tc),
-      h('div', { class: 'field s2' }, h('label', { for: 'optTracks' }, 'Mono ses track'), tracks),
-      h('div', { class: 'field s2' }, h('span', { class: 'lbl' }, 'Çıktı klasörü'), out),
-      h('div', { class: 'field s6' }, h('span', { class: 'lbl', title: 'Kaynağın metadatası yanlışsa elle seçin; normalde ffprobe karar verir.' }, 'Kaynak tarama (metadata yanlışsa)'),
-        seg([['', 'Otomatik (ffprobe)'], ['i', 'Interlaced'], ['p', 'Progressive']], o.srcScan, (v) => { o.srcScan = v; saveSettings(); renderOptions(); refreshFit(); }, 'full'))));
+      h('div', { class: 'field s2' }, toggle('EBU R128 ses seviyesi', '-23 LUFS, -1 dBTP, LRA 7', o.r128, (v) => { o.r128 = v; saveSettings(); }, 'optR128')),
+      h('div', { class: 'field s2' }, toggle('Üzerine yaz', 'Aynı adlı çıktı varsa değiştir', o.overwrite, (v) => { o.overwrite = v; saveSettings(); }, 'optOverwrite')),
+      h('div', { class: 'field' }, h('label', { for: 'optTc', title: 'MXF ve MOV çıktılarına yazılır' }, 'Başlangıç timecode'), tc),
+      h('div', { class: 'field' }, h('label', { for: 'optTracks' }, 'Mono ses track'), tracks),
+      h('div', { class: 'field s2' }, h('span', { class: 'lbl', title: 'Kaynağın metadatası yanlışsa elle seçin; normalde ffprobe karar verir.' }, 'Kaynak tarama'),
+        seg([['', 'ffprobe’a göre'], ['i', 'Interlaced'], ['p', 'Progressive']], o.srcScan, (v) => { o.srcScan = v; saveSettings(); renderOptions(); refreshFit(); }, 'full')),
+      h('div', { class: 'field', style: { gridColumn: '1 / -1' } }, h('span', { class: 'lbl' }, 'Çıktı klasörü'), out)));
 }
 
 async function pickOutDir() {
@@ -523,11 +566,11 @@ function renderActions() {
   else if (!ready.length) why = 'Seçili preset bu kaynaklara uymuyor.';
   else if (skipped > 0) why = `${skipped} dosya bu presete uymadığı ya da okunamadığı için atlanacak.`;
   const disabled = !S.ff || !!miss.length || tcBad || !ready.length;
-  fill(el, h('div', { class: 'col', style: { gap: '0', width: '100%' } },
-    h('div', { class: 'row' },
-      btn('Komut', showCommand, { ic: 'terminal', cls: 'lg', disabled, title: 'Çalıştırmadan, tam FFmpeg komutunu gösterir', id: 'btnShow' }),
-      btn(ready.length > 1 ? `${ready.length} işi kuyruğa ekle` : 'Kuyruğa ekle', enqueueLocal, { cls: 'primary lg grow', ic: 'play', disabled, id: 'btnQueue' })),
-    why ? h('div', { class: 'why' }, why) : null));
+  fill(el,
+    h('div', { class: 'keys' },
+      btn('Komut', showCommand, { cls: 'lg', disabled, title: 'Çalıştırmadan, tam FFmpeg komutunu gösterir', id: 'btnShow' }),
+      btn(ready.length > 1 ? `${ready.length} işi kuyruğa ekle` : 'Kuyruğa ekle', enqueueLocal, { cls: 'take lg grow', disabled, id: 'btnQueue' })),
+    h('div', { class: 'why' }, why));
 }
 
 async function showCommand() {
@@ -535,7 +578,7 @@ async function showCommand() {
   if (!s) return;
   try {
     const r = await api.plan({ preset: S.preset, input: s.input, ...S.opts, outDir: S.outDir || undefined });
-    commandModal(`${S.preset} · ${s.name}`, r.argv, r.command, describeTr(s.src));
+    commandModal(`${S.preset}, ${s.name}`, r.argv, r.command, srcText(s.src));
   } catch (e) { toast('err', e.message, 8000); }
 }
 
@@ -552,10 +595,10 @@ function commandModal(title, argv, command, source) {
   modal({
     title, wide: true,
     body: h('div', { class: 'col', style: { gap: '10px' } },
-      source ? h('div', { class: 'muted' }, 'Kaynak: ', h('span', { class: 'mono' }, source)) : null,
+      source ? h('div', { class: 'dim' }, `Kaynak: ${source}`) : null,
       h('pre', { class: 'cmd', id: 'cmdText' }, argv ? prettyArgv(argv) : command)),
-    foot: (close) => [h('span', { class: 'left faint' }, 'bcast --show ile aynı komut; uygulama da tam olarak bunu çalıştırır.'),
-      btn('Kopyala', async () => { await api.copy(command); toast('ok', 'Komut panoya kopyalandı.', 2500); }, { ic: 'copy' }),
+    foot: (close) => [h('span', { class: 'left' }, h('span', { class: 'code' }, 'bcast --show'), ' ile aynı komut. Uygulama da tam olarak bunu çalıştırır.'),
+      btn('Kopyala', async () => { await api.copy(command); toast('ok', 'Komut panoya kopyalandı.', 2500); }, { cls: 'primary', ic: 'copy' }),
       btn('Kapat', close, { cls: 'ghost' })],
   });
 }
@@ -597,7 +640,7 @@ async function startJob(j) {
 
 function finishedNotice(j) {
   if (document.hasFocus()) return;
-  try { new Notification(j.status === 'done' ? 'İş bitti' : 'İş başarısız', { body: `${j.name} → ${j.preset}`, silent: false }); } catch { /* not allowed */ }
+  try { new Notification(j.status === 'done' ? 'İş bitti' : 'İş başarısız', { body: `${j.name}, ${j.preset}`, silent: false }); } catch { /* not allowed */ }
 }
 
 function lastError(j) {
@@ -638,44 +681,51 @@ api.on('job', (ev) => {
   }
 });
 
-const STATUS = { queued: ['sırada', ''], starting: ['başlıyor', 'info'], running: ['çalışıyor', 'ok'], done: ['bitti', 'ok'], failed: ['hata', 'err'], cancelled: ['iptal', 'warn'] };
+const STATUS = { queued: ['sırada', ''], starting: ['başlıyor', 'run'], running: ['kodlanıyor', 'run'], done: ['bitti', 'ok'], failed: ['hata', 'err'], cancelled: ['iptal', 'warn'] };
 
 function statsText(j) {
-  if (j.status === 'running' || j.status === 'starting') {
-    if (j.pct == null) return j.time ? `${fmtDur(j.time)} işlendi` : 'hazırlanıyor';
-    const parts = [`%${Math.floor(j.pct)}`];
-    if (j.speed) parts.push(`${j.speed.toFixed(2)}x`);
-    if (j.eta != null) parts.push(`kalan ${fmtDur(j.eta)}`);
-    return parts.join(' · ');
-  }
-  if (j.status === 'done') return j.seconds ? `${fmtDur(j.seconds)} sürdü` : 'bitti';
-  if (j.status === 'queued') return 'sırada';
+  if ((j.status === 'running' || j.status === 'starting') && j.pct != null) return `%${Math.floor(j.pct)}`;
   return '';
 }
+
+/** position, remaining and speed cells of a queue row */
+function timeCells(j) {
+  const active = ['running', 'starting'].includes(j.status);
+  if (active) return [fmtTC(j.time || 0), j.eta != null ? fmtTC(j.eta) : '--:--:--', j.speed ? `${dec(j.speed, 2)}x` : ''];
+  if (j.status === 'done') return [fmtTC(j.duration), j.seconds ? `${fmtDur(j.seconds)} sürdü` : '', j.seconds && j.duration ? `${dec(j.duration / j.seconds)}x` : ''];
+  return [j.duration ? fmtTC(j.duration) : '--:--:--', '', ''];
+}
+
+const rdHead = () => h('div', { class: 'rd-head' }, h('span', null, '#'), h('span', null, 'Kaynak'), h('span', null, 'Preset'), h('span', null, 'Durum'),
+  h('span', { class: 'r' }, 'Konum'), h('span', { class: 'r' }, 'Kalan'), h('span', { class: 'r spd' }, 'Hız'), h('span'));
 
 function jobRow(j) {
   const [label, cls] = STATUS[j.status];
   const active = ['running', 'starting'].includes(j.status);
   const finished = ['done', 'failed', 'cancelled'].includes(j.status);
   const acts = [];
-  if (j.command) acts.push(iconBtn('terminal', 'Komut', () => commandModal(`${j.preset} · ${j.name}`, j.argv, j.command, j.src ? describeTr(j.src) : null)));
+  if (j.command) acts.push(iconBtn('terminal', 'Komut', () => commandModal(`${j.preset}, ${j.name}`, j.argv, j.command, j.src ? srcText(j.src) : null)));
   if (j.log.length) acts.push(iconBtn('list', 'Kayıt', () => openLog(j)));
   if (j.status === 'done' && j.where === 'local') acts.push(iconBtn('folder', 'Klasörde göster', () => api.showItem(j.output)));
   if (active || j.status === 'queued') acts.push(iconBtn('stop', 'İptal', () => cancelJob(j), 'ghost danger'));
   if (j.status === 'failed' || j.status === 'cancelled') acts.push(iconBtn('refresh', 'Yeniden dene', () => { j.status = 'queued'; j.output = null; updateJob(j); pump(); }));
   if (finished) acts.push(iconBtn('x', 'Listeden kaldır', () => { S.jobs = S.jobs.filter((x) => x !== j); renderJobs(); if (j.where !== 'local') renderServerDetail(); }));
-  const barCls = j.status === 'done' ? ' done' : j.status === 'failed' ? ' fail' : active && j.pct == null ? ' indeterminate' : '';
+  const [pos, rem, spd] = timeCells(j);
+  const no = S.jobs.filter((x) => x.where === j.where).indexOf(j) + 1;
+  const barCls = j.status === 'failed' ? ' fail' : active && j.pct == null ? ' indeterminate' : '';
   return h('div', { class: `job ${j.status}`, dataset: { job: j.id } },
-    h('div', { class: 'top' },
-      h('span', { class: 'title ellipsis', title: j.input }, j.name), h('span', { class: 'arrow' }, '→'), h('span', { class: 'jpreset' }, j.preset),
-      j.where !== 'local' && S.view === 'local' ? h('span', { class: 'where' }, serverName(j.where)) : null,
-      badge(label, cls),
-      h('div', { class: 'actions' }, acts)),
-    j.output ? h('div', { class: 'out ellipsis', title: j.output }, j.output) : null,
-    j.status !== 'queued' ? h('div', { class: 'prog' },
-      h('div', { class: `bar${barCls}` }, h('i', { style: { width: `${j.status === 'done' ? 100 : j.pct || 0}%` } })),
-      h('span', { class: 'stats' }, statsText(j))) : null,
-    j.status === 'failed' && j.error ? h('div', { class: 'err' }, j.error) : null);
+    h('div', { class: 'line' },
+      h('span', { class: 'no' }, String(no)),
+      h('span', { class: 'ellipsis', title: j.input }, h('span', { class: 'title' }, j.name),
+        j.where !== 'local' && S.view === 'local' ? h('span', { class: 'where' }, serverName(j.where)) : null),
+      h('span', { class: 'jpreset ellipsis', title: j.preset }, j.preset),
+      h('span', { class: 'row', style: { gap: '8px' } }, badge(label, cls), h('span', { class: 'stats' }, statsText(j))),
+      h('span', { class: 't r t-pos' }, pos), h('span', { class: 't r t-rem' }, rem), h('span', { class: 't r t-spd spd' }, spd),
+      h('span', { class: 'actions' }, acts)),
+    active || j.output || (j.status === 'failed' && j.error) ? h('div', { class: 'detail' },
+      active ? h('div', { class: `bar${barCls}` }, h('i', { style: { width: `${j.pct || 0}%` } })) : null,
+      j.output ? h('div', { class: 'out ellipsis', title: j.output }, j.output) : null,
+      j.status === 'failed' && j.error ? h('div', { class: 'err' }, j.error) : null) : null);
 }
 
 function updateJob(j) {
@@ -686,14 +736,19 @@ function updateJob(j) {
 }
 
 function updateProgress(j) {
+  const [pos, rem, spd] = timeCells(j);
   for (const el of document.querySelectorAll(`[data-job="${j.id}"]`)) {
     const bar = el.querySelector('.bar');
     if (bar && j.pct != null) { bar.classList.remove('indeterminate'); bar.querySelector('i').style.width = `${j.pct}%`; }
-    const st = el.querySelector('.stats');
-    if (st) st.textContent = statsText(j);
+    const set = (sel, v) => { const c = el.querySelector(sel); if (c) c.textContent = v; };
+    set('.stats', statsText(j)); set('.t-pos', pos); set('.t-rem', rem); set('.t-spd', spd);
   }
-  const a = document.querySelector(`[data-act="${j.id}"] .bar`);
-  if (a && j.pct != null) { a.classList.remove('indeterminate'); a.querySelector('i').style.width = `${j.pct}%`; }
+  const a = document.querySelector(`[data-act="${j.id}"]`);
+  if (a && j.pct != null) {
+    const b = a.querySelector('.bar');
+    b.classList.remove('indeterminate'); b.querySelector('i').style.width = `${j.pct}%`;
+    a.querySelector('.pct').textContent = `%${Math.floor(j.pct)}`;
+  }
 }
 
 async function cancelJob(j) {
@@ -708,8 +763,8 @@ function renderJobsHead() {
   const run = local.filter((j) => ['running', 'starting'].includes(j.status)).length;
   const q = local.filter((j) => j.status === 'queued').length;
   const fin = local.filter((j) => ['done', 'failed', 'cancelled'].includes(j.status)).length;
-  fill(head, h('h2', null, 'İşler'),
-    h('span', { class: 'sub' }, [run ? `${run} çalışıyor` : '', q ? `${q} sırada` : ''].filter(Boolean).join(' · ')),
+  fill(head, h('h2', null, 'Kuyruk'),
+    h('span', { class: 'sub' }, [run ? `${run} kodlanıyor` : '', q ? `${q} sırada` : '', !run && !q && local.length ? 'işler sırayla çalışır' : ''].filter(Boolean).join(', ')),
     h('span', { class: 'spacer' }),
     fin ? btn('Bitenleri temizle', () => { S.jobs = S.jobs.filter((j) => j.where !== 'local' || !['done', 'failed', 'cancelled'].includes(j.status)); renderJobs(); }, { cls: 'ghost sm' }) : null);
   renderNav();
@@ -719,8 +774,8 @@ function renderJobs() {
   const local = S.jobs.filter((j) => j.where === 'local');
   fill($('#jobsCard'),
     h('div', { class: 'card-head', id: 'jobsHead' }),
-    local.length ? h('div', { class: 'jobs' }, local.map(jobRow))
-      : h('div', { class: 'empty' }, 'Henüz iş yok. Kaynak ekleyin, preset seçin, kuyruğa ekleyin; işler sırayla çalışır.'));
+    h('div', { class: 'rundown well' }, local.length ? [rdHead(), h('div', { class: 'jobs' }, local.map(jobRow))]
+      : h('div', { class: 'empty' }, 'Kuyruk boş. Kaynak ekleyin, bir preset seçin ve Kuyruğa ekle’ye basın. İşler sırayla çalışır.')));
   renderJobsHead();
 }
 
@@ -729,9 +784,9 @@ function openLog(j) {
   const pre = h('pre', { class: 'cmd', style: { maxHeight: '60vh', minHeight: '240px' } }, j.log.join('\n'));
   logView = { id: j.id, append: (line) => { const near = pre.scrollTop + pre.clientHeight > pre.scrollHeight - 30; pre.append(`\n${line}`); if (near) pre.scrollTop = pre.scrollHeight; } };
   modal({
-    title: `Kayıt · ${j.name}`, wide: true, body: pre,
+    title: `Kayıt: ${j.name}`, wide: true, body: pre,
     onClose: () => { logView = null; },
-    foot: (close) => [h('span', { class: 'left' }), btn('Kopyala', () => api.copy(j.log.join('\n')).then(() => toast('ok', 'Kayıt kopyalandı.', 2000)), { ic: 'copy' }), btn('Kapat', close, { cls: 'ghost' })],
+    foot: (close) => [h('span', { class: 'left' }), btn('Kopyala', () => api.copy(j.log.join('\n')).then(() => toast('ok', 'Kayıt kopyalandı.', 2000)), { cls: 'primary', ic: 'copy' }), btn('Kapat', close, { cls: 'ghost' })],
   });
   setTimeout(() => { pre.scrollTop = pre.scrollHeight; }, 20);
 }
@@ -776,34 +831,35 @@ function renderServerList() {
   const el = $('#serverList');
   const rows = S.servers.map((s) => {
     const si = S.sinfo[s.id] || {};
-    const st = inst(s.id).running ? 'busy' : si.error ? 'err' : si.info ? 'ok' : '';
+    const busy = inst(s.id).running || S.jobs.some((j) => j.where === s.id && ['running', 'starting'].includes(j.status));
+    const ver = si.info ? (si.info.ffmpeg ? shortVersion(si.info.ffmpeg) : 'boş') : si.loading ? '…' : '';
     return h('button', { class: `srv${s.id === S.sel ? ' on' : ''}`, type: 'button', dataset: { server: s.id },
       onclick: () => { S.sel = s.id; saveSettings(); renderServers(); if (!S.sinfo[s.id]) loadInfo(s.id); } },
-    h('span', { class: 'avatar' }, icon('server', 'lg'), h('span', { class: `st ${st}` })),
+    h('span', { class: 'leds' },
+      lamp(si.error ? 'red' : si.info ? 'green' : null, si.error ? 'bağlanamadı' : si.info ? 'bağlı' : 'bağlantı yok'),
+      lamp(busy ? (inst(s.id).running ? 'amber' : 'red') : null, busy ? 'çalışıyor' : 'boşta')),
     h('span', { class: 'grow' },
       h('div', { class: 'n ellipsis' }, s.name || s.host),
       h('div', { class: 'h ellipsis' }, `${s.username}@${s.host}${s.port !== 22 ? `:${s.port}` : ''}`)),
-    si.info && si.info.ffmpeg ? badge('kurulu', 'ok') : si.info ? badge('boş') : null);
+    h('span', { class: `v${si.info && si.info.ffmpeg ? ' ok' : ''}` }, ver));
   });
   fill(el,
-    h('div', { class: 'card-head', style: { margin: '0 2px 4px' } }, h('h2', null, 'Sunucular'), h('span', { class: 'spacer' }),
-      btn('Sunucu ekle', () => serverForm(), { cls: 'primary sm', ic: 'plus', id: 'btnAddServer' })),
-    rows,
-    S.servers.length ? h('div', { class: 'faint', style: { fontSize: '11.5px', padding: '6px 4px' } },
-      'Bağlantı SSH ile; sunucu kimliği ilk bağlantıda kaydedilir, değişirse uyarılırsınız.') : null);
+    cardHead('Sunucular', S.servers.length ? String(S.servers.length) : null, btn('Sunucu ekle', () => serverForm(), { cls: 'sm', ic: 'plus', id: 'btnAddServer' })),
+    h('div', { class: 'rack' }, rows),
+    h('div', { class: 'rack-note' }, 'SSH ile bağlanır. Sunucu kimliği ilk bağlantıda kaydedilir, sonradan değişirse uyarır.'));
 }
 
 function renderServerDetail() {
   const el = $('#serverDetail');
   if (!el) return;
   if (!S.sel) {
-    fill(el, h('div', { class: 'card empty-hero' }, icon('server', 'xl'),
+    fill(el, h('div', { class: 'card empty-hero' },
       h('h2', null, 'Dosya sunucudaysa, kodlama da orada olsun'),
-      h('p', null, 'IP adresi, kullanıcı adı ve şifre (ya da SSH anahtarı) yeter. Dosyalar sunucuda kalır; buraya yalnızca ilerleme gelir.'),
-      h('div', { class: 'how' },
-        h('div', null, h('b', null, '1'), h('span', null, 'Sunucuyu ekleyin'), h('small', null, 'sunucu kimliği ilk bağlantıda kaydedilir')),
-        h('div', null, h('b', null, '2'), h('span', null, 'Tek tıkla kurun'), h('small', null, 'FFmpeg kaynaktan derlenir, /opt/ffmpeg-broadcast')),
-        h('div', null, h('b', null, '3'), h('span', null, 'Dosyayı seçip kodlayın'), h('small', null, 'aynı 19 preset, aynı komut'))),
+      h('p', null, 'IP adresi, kullanıcı adı ve şifre ya da SSH anahtarı yeter. Dosyalar sunucuda kalır, buraya yalnızca ilerleme gelir.'),
+      h('div', { class: 'how well' },
+        h('div', null, h('b', null, '1'), h('span', null, 'Sunucuyu ekleyin'), h('small', null, 'Sunucu kimliği ilk bağlantıda kaydedilir.')),
+        h('div', null, h('b', null, '2'), h('span', null, 'Tek tıkla kurun'), h('small', null, 'FFmpeg kaynaktan derlenir, /opt/ffmpeg-broadcast altına kurulur.')),
+        h('div', null, h('b', null, '3'), h('span', null, 'Dosyayı seçip kodlayın'), h('small', null, 'Aynı 19 preset, aynı FFmpeg komutu.'))),
       btn('Sunucu ekle', () => serverForm(), { cls: 'primary lg', ic: 'plus', id: 'btnAddServerHero' })));
     return;
   }
@@ -815,28 +871,26 @@ function renderServerDetail() {
 
 function overviewCard(s, si) {
   const i = si.info;
-  const sudo = i && (i.sudo === '' ? 'root' : i.sudo === 'nopass' ? 'şifresiz' : i.sudo === 'password' ? 'şifreyle' : i.sudo && i.sudo.error ? 'yok' : '—');
+  const sudo = i && (i.sudo === '' ? 'root' : i.sudo === 'nopass' ? 'şifresiz' : i.sudo === 'password' ? 'şifreyle' : i.sudo && i.sudo.error ? 'yok' : '?');
   let body;
-  if (si.loading && !i) body = h('div', { class: 'tiles' }, ['Sistem', 'İşlemci', 'Bellek', 'Boş disk', 'sudo', 'FFmpeg'].map((k) => h('div', { class: 'tile' }, h('div', { class: 'k' }, k), h('div', { class: 'v faint' }, '…'))));
+  if (si.loading && !i) body = h('div', { class: 'tiles well' }, ['Sistem', 'İşlemci', 'Bellek', 'Boş disk', 'sudo', 'FFmpeg'].map((k) => tile(k, '…', null, 'off')));
   else if (si.error) {
-    body = h('div', { class: 'note err', style: { marginTop: '14px' } }, icon('alert'),
-      h('div', { class: 'grow' }, h('div', null, si.error),
-        h('div', { class: 'row', style: { marginTop: '8px' } },
-          si.code === 'HOST_KEY_CHANGED' ? btn('Kimliği incele', () => hostKeyModal(s.id, si.extra), { cls: 'sm' }) : null,
-          ['AUTH', 'SUDO', 'KEY_READ'].includes(si.code) ? btn('Düzenle', () => serverForm(s), { cls: 'sm', ic: 'edit' }) : null,
-          btn('Tekrar dene', () => loadInfo(s.id), { cls: 'sm', ic: 'refresh' }))));
+    body = h('div', { class: 'pad' }, note('err', h('div', null, si.error),
+      h('div', { class: 'row', style: { marginTop: '8px' } },
+        si.code === 'HOST_KEY_CHANGED' ? btn('Kimliği incele', () => hostKeyModal(s.id, si.extra), { cls: 'sm' }) : null,
+        ['AUTH', 'SUDO', 'KEY_READ'].includes(si.code) ? btn('Düzenle', () => serverForm(s), { cls: 'sm', ic: 'edit' }) : null,
+        btn('Tekrar dene', () => loadInfo(s.id), { cls: 'sm', ic: 'refresh' }))));
   } else if (i) {
-    body = [h('div', { class: 'tiles' },
-      tile('Sistem', i.os || '?'), tile('İşlemci', `${i.cpus} çekirdek · ${i.arch}`), tile('Bellek', `${i.memGB} GB`),
-      tile('Boş disk', `${i.freeDiskGB} GB`, '/var/tmp'), tile('sudo', sudo, i.sudo && i.sudo.error),
-      tile('FFmpeg', i.ffmpeg ? shortVersion(i.ffmpeg) : 'kurulu değil', null, !!i.ffmpeg)),
-    i.sudo && i.sudo.error ? h('div', { class: 'note warn', style: { marginTop: '10px' } }, icon('alert'), h('div', null, i.sudo.error)) : null,
-    i.hostKey ? h('div', { class: 'hostkey' }, icon('shield'), 'Sunucu kimliği ', h('span', { class: 'mono selectable' }, i.hostKey),
-      i.newHostKey ? h('span', null, ' · ilk bağlantıda kaydedildi') : null) : null];
+    body = [h('div', { class: 'tiles well' },
+      tile('Sistem', String(i.os || '?').replace(/ LTS$/, '').replace(/\s*\(.*\)$/, ''), i.os), tile(`İşlemci (${i.arch})`, `${i.cpus} çekirdek`), tile('Bellek', `${i.memGB} GB`),
+      tile('Boş disk (/var/tmp)', `${i.freeDiskGB} GB`), tile('sudo', sudo, i.sudo && i.sudo.error, i.sudo && i.sudo.error ? 'off' : ''),
+      tile('FFmpeg', i.ffmpeg ? shortVersion(i.ffmpeg) : 'kurulu değil', i.ffmpeg, i.ffmpeg ? 'ok' : 'off')),
+    i.sudo && i.sudo.error ? h('div', { class: 'pad' }, note('warn', i.sudo.error)) : null,
+    i.hostKey ? h('div', { class: 'hostkey' }, icon('shield'), 'Sunucu kimliği', h('span', { class: 'code selectable' }, i.hostKey),
+      i.newHostKey ? h('span', null, 'ilk bağlantıda kaydedildi') : null) : null];
   } else body = null;
   return h('div', { class: 'card' },
     h('div', { class: 'hero' },
-      h('div', { class: 'big' }, icon('server', 'xl')),
       h('div', { class: 'grow' }, h('h1', { class: 'ellipsis' }, s.name || s.host), h('div', { class: 'addr selectable' }, `${s.username}@${s.host}:${s.port}`)),
       h('div', { class: 'acts' },
         iconBtn('refresh', 'Yenile', () => loadInfo(s.id)),
@@ -845,8 +899,8 @@ function overviewCard(s, si) {
     body);
 }
 
-function tile(k, v, title, accent) {
-  return h('div', { class: 'tile', title: title || v }, h('div', { class: 'k' }, k), h('div', { class: 'v', style: accent ? { color: 'var(--accent)' } : null }, v));
+function tile(k, v, title, cls = '') {
+  return h('div', { class: 'tile', title: title || v }, h('div', { class: `v ${cls}` }, v), h('div', { class: 'k' }, k));
 }
 
 const STEPS = [
@@ -860,12 +914,9 @@ const STEPS = [
 
 function installCard(s, i) {
   const st = inst(s.id);
-  const children = [];
-  const head = h('div', { class: 'card-head' }, h('h2', null, 'ffmpeg-broadcast'),
-    st.running ? badge('kuruluyor', 'info') : i.ffmpeg ? badge(`${shortVersion(i.ffmpeg)} · ${i.presets} preset`, 'ok') : badge('kurulu değil'),
-    h('span', { class: 'spacer' }));
-  children.push(head);
-  if (!i.apt) children.push(h('div', { class: 'note warn' }, icon('alert'), h('div', null, `Kurulum Ubuntu / Debian (apt) bekliyor; bu sunucu: ${i.os}. Sunucuda zaten /opt/ffmpeg-broadcast varsa işler yine çalışır.`)));
+  const children = [cardHead('ffmpeg-broadcast', null,
+    st.running ? badge('kuruluyor', 'info') : i.ffmpeg ? badge(`${shortVersion(i.ffmpeg)}, ${i.presets} preset`, 'ok') : badge('kurulu değil'))];
+  if (!i.apt) children.push(h('div', { class: 'pad' }, note('warn', `Kurulum Ubuntu ya da Debian (apt) bekliyor. Bu sunucu: ${i.os}. Sunucuda zaten /opt/ffmpeg-broadcast varsa işler yine çalışır.`)));
 
   if (st.running || st.lines.length) {
     if (!st.presetsOnly) {
@@ -876,7 +927,7 @@ function installCard(s, i) {
         else if (idx < at || (!st.running && st.code === 0)) c = 'done';
         else if (idx === at && st.running) c = 'now';
         else if (idx === 0 && at < 0 && st.running) c = 'now';
-        return h('span', { class: `step ${c}` }, h('span', { class: 'd' }), label);
+        return h('span', { class: `step ${c}` }, lamp(c === 'done' ? 'green' : c === 'now' ? 'amber' : c === 'fail' ? 'red' : null), label);
       })));
     }
     const term = h('div', { class: `term${st.running && !st.presetsOnly ? ' live' : ''}`, id: `term-${s.id}` });
@@ -885,27 +936,27 @@ function installCard(s, i) {
     children.push(term);
     children.push(h('div', { class: 'term-meta', id: `termMeta-${s.id}` }, termMeta(st)));
     if (!st.running && st.code != null) {
-      children.push(h('div', { class: `note ${st.code === 0 ? 'ok' : 'err'}`, style: { marginTop: '10px' } }, icon(st.code === 0 ? 'check' : 'alert'),
-        h('div', null, st.code === 0 ? `Kurulum bitti${st.minutes ? ` (${st.minutes.toFixed(1)} dk)` : ''}.` : `Kurulum ${st.code} koduyla bitti. Kayıttaki son satırlara bakın; sorunu giderip tekrar deneyebilirsiniz.`)));
+      children.push(h('div', { class: 'pad' }, note(st.code === 0 ? 'ok' : 'err',
+        st.code === 0 ? `Kurulum bitti${st.minutes ? ` (${dec(st.minutes)} dk)` : ''}.` : `Kurulum ${st.code} koduyla bitti. Kayıttaki son satırlara bakın, sorunu giderip tekrar deneyin.`)));
     }
   }
 
   if (!st.running) {
     if (!i.ffmpeg) {
-      children.push(h('p', { class: 'muted', style: { margin: '4px 0 6px' } },
-        'FFmpeg sunucuda kaynaktan derlenir ve /opt/ffmpeg-broadcast altına kurulur; sistem FFmpeg’ine dokunmaz. ',
-        `${i.cpus} çekirdekte ${i.cpus >= 8 ? '5-10' : i.cpus >= 4 ? '10-15' : '15-30'} dakika sürer. Bağlantı koparsa derleme sunucuda sürer, uygulamayı açınca kaldığı yerden izlenir.`));
       const nv = { v: false };
-      children.push(toggle('NVIDIA NVENC / NVDEC ekle', 'Sunucuda NVIDIA sürücüsü varsa donanım kodlama', false, (v) => { nv.v = v; }, `nvenc-${s.id}`));
-      children.push(h('div', { class: 'row', style: { marginTop: '10px' } },
-        btn('Sunucuya kur', () => startInstall(s.id, { nvenc: nv.v }), { cls: 'primary', ic: 'download', disabled: !i.apt || (i.sudo && i.sudo.error), id: 'btnInstall' })));
+      children.push(h('p', { class: 'dim', style: { margin: '12px 12px 0', maxWidth: '78ch' } },
+        'FFmpeg sunucuda kaynaktan derlenir ve /opt/ffmpeg-broadcast altına kurulur, sistemdeki FFmpeg’e dokunmaz. ',
+        `${i.cpus} çekirdekte ${i.cpus >= 8 ? '2-5' : i.cpus >= 4 ? '3-8' : '8-20'} dakika sürer. Bağlantı koparsa derleme sunucuda sürer, uygulamayı açınca kaldığı yerden izlenir.`));
+      children.push(h('div', { class: 'pad' }, toggle('NVIDIA NVENC / NVDEC ekle', 'Sunucuda NVIDIA sürücüsü varsa donanım kodlama', false, (v) => { nv.v = v; }, `nvenc-${s.id}`)));
+      children.push(h('div', { class: 'card-foot' },
+        btn('Sunucuya kur', () => startInstall(s.id, { nvenc: nv.v }), { cls: 'take', disabled: !i.apt || (i.sudo && i.sudo.error), id: 'btnInstall' })));
     } else {
-      children.push(h('div', { class: 'row', style: { marginTop: st.lines.length ? '10px' : '0' } },
-        h('span', { class: 'muted grow' }, `${i.presets} preset, ${S.info.remotePrefix}/bin`),
-        btn('Presetleri güncelle', () => startInstall(s.id, { presetsOnly: true }), { cls: 'sm', ic: 'refresh', disabled: i.sudo && i.sudo.error, title: 'Bu uygulamadaki bcast ve presetleri sunucuya yükler; derleme yapmaz' }),
-        btn('Yeniden derle', async () => { if (await confirmBox('Yeniden derlensin mi?', 'FFmpeg sunucuda baştan derlenir; süren işler etkilenmez ama sunucu bir süre meşgul olur.', 'Derle')) startInstall(s.id, {}); }, { cls: 'sm ghost', disabled: !i.apt })));
+      children.push(h('div', { class: 'card-foot' },
+        h('span', { class: 'dim grow' }, `${i.presets} preset, ${S.info.remotePrefix}/bin`),
+        btn('Presetleri güncelle', () => startInstall(s.id, { presetsOnly: true }), { cls: 'sm', ic: 'refresh', disabled: i.sudo && i.sudo.error, title: 'Bu uygulamadaki bcast ve presetleri sunucuya yükler, derleme yapmaz' }),
+        btn('Yeniden derle', async () => { if (await confirmBox('Yeniden derlensin mi?', 'FFmpeg sunucuda baştan derlenir. Süren işler etkilenmez ama sunucu bir süre meşgul olur.', 'Derle')) startInstall(s.id, {}); }, { cls: 'sm ghost', disabled: !i.apt })));
     }
-  }
+  } else children.push(h('div', { style: { height: '12px' } }));
   return h('div', { class: 'card' }, children);
 }
 
@@ -920,7 +971,7 @@ function termLine(l) {
 
 function termMeta(st) {
   const secs = st.running ? (Date.now() - st.t0) / 1000 : (st.minutes || 0) * 60;
-  return [h('span', null, `süre ${fmtDur(secs)}`), st.compiled ? h('span', null, `${st.compiled} dosya derlendi`) : null, h('span', null, `${st.lines.length} satır`)];
+  return [h('span', null, fmtTC(secs)), st.compiled ? h('span', null, `${st.compiled} dosya derlendi`) : null, h('span', null, `${st.lines.length} satır`)];
 }
 
 async function startInstall(id, o) {
@@ -998,30 +1049,30 @@ function remoteJobCard(s, i) {
   const f = rform(s.id);
   const jobs = S.jobs.filter((j) => j.where === s.id);
   const can = !!i.ffmpeg;
-  const inputEl = h('input', { class: 'input mono', id: 'remoteInput', placeholder: '/srv/media/haber.mov', value: f.input,
+  const inputEl = h('input', { class: 'input path', id: 'remoteInput', placeholder: '/srv/media/haber.mov', value: f.input,
     oninput: (e) => { f.input = e.target.value.trim(); updateRemoteOut(s.id); syncRemoteBtn(s.id); } });
-  const outEl = h('input', { class: 'input mono', id: 'remoteOutput', value: f.output, placeholder: 'girdinin yanına, otomatik',
+  const outEl = h('input', { class: 'input path', id: 'remoteOutput', value: f.output, placeholder: 'girdinin yanına',
     oninput: (e) => { f.output = e.target.value.trim(); } });
   const presetSel = h('select', { class: 'input', id: 'remotePreset', onchange: (e) => { f.preset = e.target.value; api.saveSettings({ remotePreset: f.preset }).catch(() => {}); updateRemoteOut(s.id); } },
     S.info.categories.map((c) => h('optgroup', { label: CAT[c] }, S.presets.filter((p) => p.category === c).map((p) =>
-      h('option', { value: p.name, selected: p.name === f.preset ? 'selected' : null }, `${p.name}  ·  ${extLabel(p)}`)))));
-  const tcEl = h('input', { class: 'input mono', placeholder: '10:00:00:00', value: f.tc, maxlength: '11',
+      h('option', { value: p.name, selected: p.name === f.preset ? 'selected' : null }, `${p.name}   ${fmtCode(p)}`)))));
+  const tcEl = h('input', { class: 'input tc', placeholder: '10:00:00:00', value: f.tc, maxlength: '11',
     oninput: (e) => { f.tc = e.target.value.trim(); e.target.classList.toggle('invalid', !!f.tc && !TC_RE.test(f.tc)); syncRemoteBtn(s.id); } });
   setTimeout(() => updateRemoteOut(s.id), 0);
   return h('div', { class: 'card' },
-    h('div', { class: 'card-head' }, h('h2', null, 'Sunucuda çalıştır'), h('span', { class: 'sub' }, 'dosya sunucuda kalır, yalnızca ilerleme gelir')),
-    !can ? h('div', { class: 'note' }, icon('info'), h('div', null, 'Önce ffmpeg-broadcast’i kurun; sonra sunucudaki bir dosyayı seçip presetle kodlayabilirsiniz.')) : null,
-    h('div', { class: 'form-grid' },
+    cardHead('Sunucuda çalıştır', 'dosya sunucuda kalır, buraya yalnızca ilerleme gelir'),
+    !can ? h('div', { class: 'pad' }, note('', 'Önce ffmpeg-broadcast’i kurun. Sonra sunucudaki bir dosyayı seçip presetle kodlayabilirsiniz.')) : null,
+    h('div', { class: 'form-grid', style: { padding: '12px' } },
       h('div', { class: 'field full' }, h('label', { for: 'remoteInput' }, 'Girdi (sunucudaki dosya)'),
         h('div', { class: 'row' }, inputEl, btn('Gözat', () => browseModal(s.id), { ic: 'folder', disabled: !can }))),
       h('div', { class: 'field' }, h('label', { for: 'remotePreset' }, 'Preset'), presetSel),
       h('div', { class: 'field' }, h('label', null, 'Başlangıç timecode'), tcEl),
       h('div', { class: 'field full' }, h('label', { for: 'remoteOutput' }, 'Çıktı'), outEl),
       h('div', { class: 'field' }, toggle('EBU R128', '-23 LUFS', f.r128, (v) => { f.r128 = v; })),
-      h('div', { class: 'field' }, toggle('Üzerine yaz', null, f.overwrite, (v) => { f.overwrite = v; }))),
-    h('div', { class: 'row', style: { marginTop: '12px' } }, h('span', { class: 'grow' }),
-      btn('Sunucuda çalıştır', () => enqueueRemote(s.id), { cls: 'primary', ic: 'play', id: 'btnRunRemote', disabled: !can || !f.input })),
-    jobs.length ? h('div', { class: 'jobs', style: { marginTop: '14px' } }, jobs.map(jobRow)) : null);
+      h('div', { class: 'field' }, toggle('Üzerine yaz', 'Aynı adlı çıktı varsa', f.overwrite, (v) => { f.overwrite = v; }))),
+    h('div', { class: 'card-foot', style: { paddingTop: '0' } }, h('span', { class: 'grow' }),
+      btn('Sunucuda çalıştır', () => enqueueRemote(s.id), { cls: 'take', id: 'btnRunRemote', disabled: !can || !f.input })),
+    jobs.length ? h('div', { class: 'rundown well', style: { marginTop: '0' } }, rdHead(), h('div', { class: 'jobs' }, jobs.map(jobRow))) : null);
 }
 
 function syncRemoteBtn(id) {
@@ -1038,7 +1089,7 @@ function updateRemoteOut(id) {
     const f = rform(id);
     const el = $('#remoteOutput');
     if (!el) return;
-    if (!f.input) { el.placeholder = 'girdinin yanına, otomatik'; return; }
+    if (!f.input) { el.placeholder = 'girdinin yanına'; return; }
     try { const r = await api.remotePlan(id, { input: f.input, preset: f.preset }); el.placeholder = r.output; } catch { /* ignore */ }
   }, 150);
 }
@@ -1056,8 +1107,8 @@ function enqueueRemote(id) {
 
 function browseModal(id) {
   const f = rform(id);
-  const pathEl = h('input', { class: 'input mono', value: '' });
-  const list = h('div', { class: 'entries' });
+  const pathEl = h('input', { class: 'input path', value: '' });
+  const list = h('div', { class: 'entries well' });
   let cur = '.';
   const go = async (dir) => {
     fill(list, h('div', { class: 'empty' }, 'okunuyor…'));
@@ -1076,9 +1127,9 @@ function browseModal(id) {
   };
   pathEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(pathEl.value.trim() || '/'); });
   const m = modal({
-    title: `Sunucuda dosya seç · ${serverName(id)}`, wide: true,
-    body: h('div', { class: 'browser' }, h('div', { class: 'path' }, icon('folder'), pathEl, btn('Git', () => go(pathEl.value.trim() || '/'), { cls: 'sm' })), list),
-    foot: (close) => [h('span', { class: 'left faint' }, 'Bir dosyaya tıklayın; klasöre tıklayınca içine girer.'), btn('Kapat', close, { cls: 'ghost' })],
+    title: `Sunucuda dosya seç: ${serverName(id)}`, wide: true,
+    body: h('div', { class: 'browser' }, h('div', { class: 'path' }, pathEl, btn('Git', () => go(pathEl.value.trim() || '/'))), list),
+    foot: (close) => [h('span', { class: 'left' }, 'Dosyaya tıklayınca seçilir, klasöre tıklayınca içine girer.'), btn('Kapat', close, { cls: 'ghost' })],
   });
   const start = f.input ? f.input.replace(/\/[^/]*$/, '') || '/' : '.';
   go(start).then(() => { if (!cur) go('.'); });
@@ -1089,10 +1140,9 @@ function hostKeyModal(id, e) {
   modal({
     title: 'Sunucunun kimliği değişti',
     body: h('div', { class: 'col', style: { gap: '12px' } },
-      h('div', { class: 'note warn' }, icon('alert'), h('div', null,
-        'Bu adres daha önce başka bir kimlikle karşıladı. Sunucuyu yeniden kurduysanız ya da IP başka makineye geçtiyse normaldir. Kurmadıysanız araya giren biri olabilir; bağlanmayın, şifre göndermeyin.')),
-      h('div', { class: 'field' }, h('span', { class: 'lbl' }, 'Kayıtlı'), h('div', { class: 'mono selectable' }, known)),
-      h('div', { class: 'field' }, h('span', { class: 'lbl' }, 'Şimdi gelen'), h('div', { class: 'mono selectable' }, presented))),
+      note('warn', 'Bu adres daha önce başka bir kimlikle karşıladı. Sunucuyu yeniden kurduysanız ya da IP başka makineye geçtiyse normaldir. Kurmadıysanız araya giren biri olabilir: bağlanmayın, şifre göndermeyin.'),
+      h('div', { class: 'field' }, h('span', { class: 'lbl' }, 'Kayıtlı'), h('div', { class: 'code selectable' }, known)),
+      h('div', { class: 'field' }, h('span', { class: 'lbl' }, 'Şimdi gelen'), h('div', { class: 'code selectable' }, presented))),
     foot: (close) => [h('span', { class: 'left' }), btn('Bağlanma', close, { cls: 'ghost' }),
       btn('Yeni kimliğe güven', async () => { close(); await api.forgetHost(id); loadInfo(id); }, { cls: 'danger' })],
   });
@@ -1113,32 +1163,32 @@ function serverForm(existing) {
   const keep = existing && existing.hasSecret;
   const result = h('div');
   const body = h('div');
-  const input = (key, props = {}, obj = d) => h('input', { class: `input${props.mono ? ' mono' : ''}`, value: obj[key] == null ? '' : String(obj[key]),
+  const input = (key, props = {}, obj = d) => h('input', { class: 'input', value: obj[key] == null ? '' : String(obj[key]),
     oninput: (e) => { obj[key] = e.target.value; }, ...props, mono: null });
   const draw = () => {
     const authFields = d.auth === 'password'
       ? h('div', { class: 'field full' }, h('label', null, 'Şifre'), input('password', { type: 'password', id: 'srvPassword', placeholder: keep ? 'kayıtlı (değiştirmek için yazın)' : '' }, sec))
       : d.auth === 'key'
         ? [h('div', { class: 'field full' }, h('label', null, 'SSH anahtarı'),
-          h('div', { class: 'row' }, input('keyPath', { mono: true, placeholder: '~/.ssh/id_ed25519', id: 'srvKey' }),
-            btn('Seç', async () => { const k = await api.pickKey(); if (k) { d.keyPath = k; draw(); } }, { ic: 'key' }))),
+          h('div', { class: 'row' }, input('keyPath', { placeholder: '~/.ssh/id_ed25519', id: 'srvKey' }),
+            btn('Seç', async () => { const k = await api.pickKey(); if (k) { d.keyPath = k; draw(); } }))),
         h('div', { class: 'field full' }, h('label', null, 'Anahtar parolası'), input('passphrase', { type: 'password', placeholder: keep ? 'kayıtlı ya da yok' : 'yoksa boş bırakın' }, sec))]
-        : h('div', { class: 'field full' }, h('div', { class: 'note' }, icon('info'), h('div', null,
-          S.info.platform === 'win32' ? 'Windows OpenSSH agent’ındaki anahtarlar kullanılır (ssh-add ile ekleyin).' : 'SSH_AUTH_SOCK’taki agent kullanılır (ssh-add ile ekleyin; macOS Anahtar Zinciri dahil).')));
+        : h('div', { class: 'field full' }, note('',
+          S.info.platform === 'win32' ? 'Windows OpenSSH agent’ındaki anahtarlar kullanılır (ssh-add ile ekleyin).' : 'SSH_AUTH_SOCK’taki agent kullanılır (ssh-add ile ekleyin, macOS Anahtar Zinciri dahil).'));
     fill(body, h('div', { class: 'form-grid' },
       h('div', { class: 'field full' }, h('label', null, 'Ad'), input('name', { placeholder: 'encoder-1', id: 'srvName' })),
-      h('div', { class: 'field' }, h('label', null, 'Adres (IP ya da alan adı)'), input('host', { mono: true, placeholder: '203.0.113.10', id: 'srvHost' })),
-      h('div', { class: 'field' }, h('label', null, 'Port'), input('port', { mono: true, type: 'number', min: '1', max: '65535', id: 'srvPort' })),
-      h('div', { class: 'field full' }, h('label', null, 'Kullanıcı'), input('username', { mono: true, placeholder: 'ubuntu', id: 'srvUser' })),
+      h('div', { class: 'field' }, h('label', null, 'Adres (IP ya da alan adı)'), input('host', { placeholder: '203.0.113.10', id: 'srvHost' })),
+      h('div', { class: 'field' }, h('label', null, 'Port'), input('port', { type: 'number', min: '1', max: '65535', id: 'srvPort' })),
+      h('div', { class: 'field full' }, h('label', null, 'Kullanıcı'), input('username', { placeholder: 'ubuntu', id: 'srvUser' })),
       h('div', { class: 'field full' }, h('span', { class: 'lbl' }, 'Giriş'),
         seg([['password', 'Şifre'], ['key', 'SSH anahtarı'], ['agent', 'ssh-agent']], d.auth, (v) => { d.auth = v; draw(); }, 'full')),
       authFields,
       h('div', { class: 'field full' }, h('label', null, 'sudo şifresi (isteğe bağlı)'), input('sudoPassword', { type: 'password', id: 'srvSudo', placeholder: keep ? 'kayıtlı ya da giriş şifresi' : 'boşsa giriş şifresi denenir' }, sec),
-        h('span', { class: 'hint' }, 'Kurulum root yetkisi ister. root ile ya da şifresiz sudo ile bağlanıyorsanız gerekmez.')),
-      h('div', { class: 'field full' }, h('div', { class: `note${S.info.secureSecrets ? ' ok' : ' warn'}` }, icon(S.info.secureSecrets ? 'shield' : 'alert'), h('div', null,
+        h('span', { class: 'hint' }, 'Kurulum root yetkisi ister. root ya da şifresiz sudo ile bağlanıyorsanız gerekmez.')),
+      h('div', { class: 'field full' }, note(S.info.secureSecrets ? 'ok' : 'warn',
         S.info.secureSecrets
-          ? `Şifreler ${S.info.platform === 'darwin' ? 'macOS Anahtar Zinciri' : S.info.platform === 'win32' ? 'Windows DPAPI' : 'sistem anahtar deposu'} ile şifrelenip bu bilgisayarda saklanır; düz metin olarak hiçbir yere yazılmaz.`
-          : 'Bu sistemde güvenli anahtar deposu yok; şifreler diske yazılmaz, yalnızca uygulama açıkken hatırlanır.'))),
+          ? `Şifreler ${S.info.platform === 'darwin' ? 'macOS Anahtar Zinciri' : S.info.platform === 'win32' ? 'Windows DPAPI' : 'sistem anahtar deposu'} ile şifrelenip bu bilgisayarda saklanır, düz metin olarak hiçbir yere yazılmaz.`
+          : 'Bu sistemde güvenli anahtar deposu yok. Şifreler diske yazılmaz, yalnızca uygulama açıkken hatırlanır.')),
       h('div', { class: 'field full' }, result)));
   };
   draw();
@@ -1154,17 +1204,17 @@ function serverForm(existing) {
   const clean = () => ({ ...d, host: d.host.trim(), username: d.username.trim(), port: Number(d.port) || 22, name: (d.name || '').trim() || d.host.trim() });
   const test = async () => {
     const err = valid();
-    if (err) { fill(result, h('div', { class: 'note err' }, icon('alert'), h('div', null, err))); return; }
-    fill(result, h('div', { class: 'note' }, icon('refresh'), h('div', null, 'Bağlanılıyor…')));
+    if (err) { fill(result, note('err', err)); return; }
+    fill(result, note('', 'Bağlanılıyor…'));
     try {
       const r = await api.testServer(clean(), sec);
       const sudo = r.sudo === '' ? 'root' : r.sudo === 'nopass' ? 'şifresiz sudo' : r.sudo === 'password' ? 'sudo şifreyle' : null;
-      fill(result, h('div', { class: `note ${r.sudo && r.sudo.error ? 'warn' : 'ok'}` }, icon(r.sudo && r.sudo.error ? 'alert' : 'check'), h('div', null,
+      fill(result, note(r.sudo && r.sudo.error ? 'warn' : 'ok',
         h('div', null, `Bağlandı: ${r.os}, ${r.cpus} çekirdek, ${r.memGB} GB. `, sudo ? `Yetki: ${sudo}.` : r.sudo && r.sudo.error ? r.sudo.error : '',
-          r.ffmpeg ? ` ffmpeg-broadcast kurulu (${r.ffmpeg}).` : ''),
-        r.newHostKey ? h('div', { class: 'mono', style: { marginTop: '4px', fontSize: '11px' } }, `Sunucu kimliği kaydedildi: ${r.newHostKey}`) : null)));
+          r.ffmpeg ? ` ffmpeg-broadcast kurulu (${shortVersion(r.ffmpeg)}).` : ''),
+        r.newHostKey ? h('div', { class: 'code', style: { marginTop: '4px' } }, `Sunucu kimliği kaydedildi: ${r.newHostKey}`) : null));
     } catch (e) {
-      fill(result, h('div', { class: 'note err' }, icon('alert'), h('div', null, e.message)));
+      fill(result, note('err', e.message));
       if (e.code === 'HOST_KEY_CHANGED' && existing) hostKeyModal(existing.id, e);
     }
   };
@@ -1172,11 +1222,11 @@ function serverForm(existing) {
     title: existing ? 'Sunucuyu düzenle' : 'Sunucu ekle',
     body,
     foot: (close) => [
-      h('span', { class: 'left' }, btn('Bağlantıyı dene', test, { ic: 'bolt', id: 'btnTestServer' })),
+      h('span', { class: 'left' }, btn('Bağlantıyı dene', test, { id: 'btnTestServer' })),
       btn('Vazgeç', close, { cls: 'ghost' }),
       btn('Kaydet', async () => {
         const err = valid();
-        if (err) { fill(result, h('div', { class: 'note err' }, icon('alert'), h('div', null, err))); return; }
+        if (err) { fill(result, note('err', err)); return; }
         try {
           const saved = await api.saveServer(clean(), sec);
           close();
@@ -1184,7 +1234,7 @@ function serverForm(existing) {
           S.sel = saved.id; saveSettings();
           await reloadServers();
           setView('servers');
-        } catch (e) { fill(result, h('div', { class: 'note err' }, icon('alert'), h('div', null, e.message))); }
+        } catch (e) { fill(result, note('err', e.message)); }
       }, { cls: 'primary', id: 'btnSaveServer' }),
     ],
   });
@@ -1223,7 +1273,7 @@ async function init() {
   S.servers = await api.servers();
   S.sel = S.servers.some((s) => s.id === S.settings.lastServer) ? S.settings.lastServer : (S.servers[0] || {}).id || null;
 
-  for (const b of document.querySelectorAll('.nav-item')) b.addEventListener('click', () => setView(b.dataset.view));
+  for (const b of document.querySelectorAll('.mode')) b.addEventListener('click', () => setView(b.dataset.view));
   bindDrop();
   renderFoot(); renderNav(); renderFf(); renderBanner();
   renderSources(); renderJobs(); renderPresets(); renderOptions(); renderActions();
