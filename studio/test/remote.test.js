@@ -9,6 +9,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const path = require('path');
+const net = require('net');
 const { Server, RemoteError } = require('../src/core/remote');
 const notice = require('./notice');
 
@@ -35,6 +36,25 @@ test('server: connect, host key trust on first use, refuse a changed key', { ski
   hosts.set(`${cfg.host}:${cfg.port}`, 'SHA256:somethingelse');
   await assert.rejects(new Server(cfg, secret, hosts).connect(), (e) => e.code === 'HOST_KEY_CHANGED');
   notes.push('host key pinned, a changed key is refused');
+});
+
+test('server: a connection dropped during the handshake is tried once more', { skip }, async () => {
+  let n = 0;
+  const proxy = net.createServer((sock) => {
+    n++;
+    if (n === 1) { sock.destroy(); return; }          // drop the first attempt
+    const up = net.connect(cfg.port, cfg.host);
+    sock.pipe(up).pipe(sock);
+    up.on('error', () => sock.destroy());
+    sock.on('error', () => up.destroy());
+  });
+  await new Promise((r) => proxy.listen(0, '127.0.0.1', r));
+  try {
+    const s = await new Server({ ...cfg, host: '127.0.0.1', port: proxy.address().port }, secret, memoryHosts()).connect();
+    s.close();
+    assert.strictEqual(n, 2, 'connected on the second attempt');
+  } finally { proxy.close(); }
+  notes.push('a handshake dropped once is retried');
 });
 
 test('server: wrong password is a clear error', { skip }, async () => {

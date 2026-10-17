@@ -39,7 +39,21 @@ class Server {
 
   get hostport() { return `${this.cfg.host}:${this.cfg.port}`; }
 
-  connect() {
+  /**
+   * Connect. A connection that drops during the handshake (reset, lost before
+   * the handshake) is tried once more: on busy servers and flaky links the
+   * second attempt usually goes through. Refused, unreachable, wrong password
+   * and a changed host key are reported at once.
+   */
+  async connect() {
+    try { return await this.connectOnce(); } catch (e) {
+      if (e.code !== 'DROPPED') throw e;
+      await new Promise((r) => setTimeout(r, 1500));
+      return this.connectOnce();
+    }
+  }
+
+  connectOnce() {
     return new Promise((resolve, reject) => {
       const c = new Client();
       let mismatch = null;
@@ -80,7 +94,9 @@ class Server {
           reject(new RemoteError('AUTH', 'Kullanıcı adı, şifre ya da anahtar kabul edilmedi.'));
         } else if (/ECONNREFUSED|EHOSTUNREACH|ENOTFOUND|ETIMEDOUT|Timed out/i.test(String(e.code || e.message))) {
           reject(new RemoteError('UNREACHABLE', `${this.hostport} adresine ulaşılamadı (${e.code || e.message}).`));
-        } else reject(new RemoteError('SSH', e.message));
+        } else if (/ECONNRESET|EPIPE|lost before handshake|Connection lost/i.test(String(e.code || e.message))) {
+          reject(new RemoteError('DROPPED', `${this.hostport} bağlantıyı el sıkışma sırasında kesti (${e.code || e.message}). Sunucu meşgul olabilir, tekrar deneyin.`));
+        } else reject(new RemoteError('SSH', `SSH hatası: ${e.message}`));
       });
       try { c.connect(opts); } catch (e) { reject(new RemoteError('SSH', e.message)); }
     });

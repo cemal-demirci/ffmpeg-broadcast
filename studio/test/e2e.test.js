@@ -251,13 +251,17 @@ step('a server is added by IP, set up and used from the app', { skip: !ssh && 'B
   await win.fill('#srvUser', ssh.user);
   await win.fill('#srvPassword', ssh.pass);
   await win.click('#btnTestServer');
-  await win.waitForFunction(() => { const n = [...document.querySelectorAll('.modal .note')].pop(); return n && /Bağlandı|ulaşılamadı|kabul edilmedi/.test(n.innerText); }, null, { timeout: 60000 });
+  // wait for any answer (connected or an error), then check it, so a failure shows its message
+  await win.waitForFunction(() => { const n = [...document.querySelectorAll('.modal .note')].pop(); return n && !/Bağlanılıyor|güvenli anahtar deposu|Şifreler/.test(n.innerText); }, null, { timeout: 90000 });
   const tested = await win.evaluate(() => [...document.querySelectorAll('.modal .note')].pop().innerText);
   assert.match(tested, /Bağlandı/, tested);
   assert.match(tested, /SHA256:/, 'host key shown and pinned');
   await shot('07-server-form');
   await win.click('#btnSaveServer');
-  await win.waitForFunction(() => document.querySelector('.tiles') && !/…/.test(document.querySelector('.tiles').innerText), null, { timeout: 60000 });
+  await win.waitForFunction(() => (document.querySelector('.tiles') && !/…/.test(document.querySelector('.tiles').innerText)) ||
+    document.querySelector('#serverDetail .note.err'), null, { timeout: 90000 });
+  const infoErr = await win.evaluate(() => { const n = document.querySelector('#serverDetail .note.err'); return n && n.innerText; });
+  assert.ok(!infoErr, `server info: ${infoErr}`);
 
   const t0 = Date.now();
   const full = env.BCAST_E2E_FULL_INSTALL === '1';
