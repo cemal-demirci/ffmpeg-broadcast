@@ -206,7 +206,7 @@ basar, yazılan dosyaları ffprobe ile kontrol eder):
 | | |
 |---|---|
 | Windows ve macOS | Paketlenmiş uygulama açıldı, FFmpeg uygulamanın içinden indirildi (4 saniye), 19 presetin hepsi destekleniyor. 3 kaynak eklendi, 7 iş kuyrukta çalıştı: XDCAM HD422 1080i TFF ve 4 mono ses track'i, BWF -23 LUFS, 4 kademeli HLS. Var olan çıktının üzerine yazma reddedildi, iptal yarım dosya bırakmadı. |
-| Sunucu | Linux'ta uygulama bir SSH sunucusunu IP ile ekledi (sudo şifreli), FFmpeg'i orada kaynaktan derleyip kurdu (4 çekirdekte 2.7 dakika, 1005 dosya), sunucudaki dosyayı tarayıcıdan seçip `dvb-h264-1080i25` çalıştırdı. Çıktı H.264 1080i TFF. Değişen sunucu kimliği ve yanlış şifre de ayrıca test edildi. |
+| Sunucu | Linux'ta uygulama bir SSH sunucusunu IP ile ekledi (sudo şifreli), FFmpeg'i orada kaynaktan derleyip kurdu (4 çekirdekte yaklaşık 3 dakika, 1005 dosya), sunucudaki dosyayı tarayıcıdan seçip `dvb-h264-1080i25` çalıştırdı. Çıktı H.264 1080i TFF. Değişen sunucu kimliği ve yanlış şifre de ayrıca test edildi. |
 | Motor | 19 preset x 7 kaynak x 4 seçenek: 532 durumda bash `bcast` ile bayt bayt aynı komut. |
 
 Dürüst not: testler üretilmiş renk barları ve tonlarla yapılıyor, gerçek bir playout sunucusunda kabul testi
@@ -247,6 +247,6 @@ ladder, web / proxy MP4 and BWF R128.
   Passwords are kept in the macOS Keychain / Windows DPAPI. Unsigned builds on the Releases page.
 - **Tested:** every commit builds FFmpeg from source and runs 59 checks; every preset is encoded and verified with ffprobe.
   The app is driven like a user on Windows, macOS and Linux (FFmpeg downloaded from the app, 7 jobs verified with
-  ffprobe, a server added by IP and FFmpeg built there in 2.7 min), and its JS engine builds byte-for-byte the same
+  ffprobe, a server added by IP and FFmpeg built there in about 3 min), and its JS engine builds byte-for-byte the same
   command as bash `bcast` in 532 cases. Synthetic test signals only; no playout-server acceptance test; NVENC not covered.
 - **License:** scripts PolyForm Noncommercial 1.0.0 (commercial license: cemaldemirci0034@gmail.com); the resulting FFmpeg binary is GPL v2+ (x264 / x265).

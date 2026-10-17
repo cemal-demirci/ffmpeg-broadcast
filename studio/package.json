@@ -1,7 +1,7 @@
 {
   "name": "bcast-studio",
   "productName": "bcast Studio",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Cemal.cloud bcast Studio: broadcast presets for FFmpeg on your computer and on your servers",
   "author": "Cemal Demirci (Cemal.cloud)",
   "license": "SEE LICENSE IN ../LICENSE",
